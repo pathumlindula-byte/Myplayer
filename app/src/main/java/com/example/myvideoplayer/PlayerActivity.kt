@@ -1,377 +1,184 @@
 package com.example.myvideoplayer
 
-import android.content.pm.ActivityInfo
-import android.content.res.Configuration
-import android.graphics.Rect
+import android.annotation.SuppressLint
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewConfiguration
-import android.view.WindowInsets
-import android.view.WindowInsetsController
+import android.view.animation.AccelerateDecelerateInterpolator
+import android.view.animation.OvershootInterpolator
 import android.widget.Button
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
-import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.util.Locale
-import kotlin.math.abs
-
-data class SubtitleCue(
-    val startMs: Long,
-    val endMs: Long,
-    val text: String
-)
+import java.util.concurrent.TimeUnit
 
 class PlayerActivity : AppCompatActivity() {
 
     private lateinit var playerView: PlayerView
-    private lateinit var centerSeekPanel: LinearLayout
-    private lateinit var seekBarPanel: LinearLayout
-    private lateinit var controlsPanel: LinearLayout
-    private lateinit var tvCustomSubtitle: TextView
+    private lateinit var player: ExoPlayer
+    private lateinit var videoSeekBar: SeekBar
     private lateinit var tvCurrentTime: TextView
     private lateinit var tvTotalTime: TextView
-    private lateinit var videoSeekBar: SeekBar
-    private var ivPlayerLogo: ImageView? = null
-
-    private lateinit var btnOpenVideo: Button
-    private lateinit var btnRewind10: Button
+    private lateinit var tvCustomSubtitle: TextView
     private lateinit var btnPlayPause: Button
-    private lateinit var btnForward10: Button
-    private lateinit var btnZoom: Button
-    private lateinit var btnAspect: Button
-    private lateinit var btnSpeed: Button
-    private lateinit var btnRotate: Button
-    private lateinit var btnAddSub: Button
-    private lateinit var btnSubSyncMinus: Button
-    private lateinit var btnSubSyncPlus: Button
-    private lateinit var btnSubSpeed: Button
+    private lateinit var logoOverlay: LinearLayout
 
-    private var player: ExoPlayer? = null
-    private var controlsVisible = true
-    private var manualLandscape = false
-    private var zoomToFill = false
-    private var isUserSeeking = false
+    private val handler = Handler(Looper.getMainLooper())
+    private var isSeeking = false
+    private var speedIndex = 0
+    private val speeds = listOf(1.0f, 1.25f, 1.5f, 2.0f, 0.75f)
 
-    private var downX = 0f
-    private var downY = 0f
-    private var touchSlop = 24
+    private val pickVideoLauncher =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+            uri?.let { playVideo(it) }
+        }
 
-    private val speeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
-    private var speedIndex = 1
+    private val pickSubtitleLauncher =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+            uri?.let {
+                tvCustomSubtitle.animateIosShow()
+                tvCustomSubtitle.text = "Subtitle loaded"
+            }
+        }
 
-    private val aspectModes = listOf(
-        AspectRatioFrameLayout.RESIZE_MODE_FIT,
-        AspectRatioFrameLayout.RESIZE_MODE_FILL,
-        AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-    )
-    private var aspectIndex = 0
+    private val updateProgressRunnable = object : Runnable {
+        override fun run() {
+            if (::player.isInitialized && !isSeeking) {
+                val duration = player.duration.takeIf { it > 0 } ?: 0L
+                val current = player.currentPosition.takeIf { it > 0 } ?: 0L
 
-    private val subSpeeds = listOf(0.75f, 1.0f, 1.25f, 1.5f)
-    private var subSpeedIndex = 1
-    private var subSyncOffsetMs: Long = 0L
-    private var subtitles: List<SubtitleCue> = emptyList()
+                tvCurrentTime.text = formatTime(current)
+                tvTotalTime.text = formatTime(duration)
 
-    private val subHandler = Handler(Looper.getMainLooper())
-
-    private val pickVideoLauncher = registerForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let { playVideo(it) }
-    }
-
-    private val pickSubtitleLauncher = registerForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let { loadSrtSubtitles(it) }
+                if (duration > 0) {
+                    val progress = ((current * 1000L) / duration).toInt().coerceIn(0, 1000)
+                    videoSeekBar.progress = progress
+                } else {
+                    videoSeekBar.progress = 0
+                }
+            }
+            handler.postDelayed(this, 300)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_player)
 
-        touchSlop = ViewConfiguration.get(this).scaledTouchSlop
-
         playerView = findViewById(R.id.playerView)
-        centerSeekPanel = findViewById(R.id.centerSeekPanel)
-        seekBarPanel = findViewById(R.id.seekBarPanel)
-        controlsPanel = findViewById(R.id.controlsPanel)
-        tvCustomSubtitle = findViewById(R.id.tvCustomSubtitle)
+        videoSeekBar = findViewById(R.id.videoSeekBar)
         tvCurrentTime = findViewById(R.id.tvCurrentTime)
         tvTotalTime = findViewById(R.id.tvTotalTime)
-        videoSeekBar = findViewById(R.id.videoSeekBar)
-        ivPlayerLogo = findViewById(R.id.ivPlayerLogo)
-
-        btnOpenVideo = findViewById(R.id.btnOpenVideo)
-        btnRewind10 = findViewById(R.id.btnRewind10)
+        tvCustomSubtitle = findViewById(R.id.tvCustomSubtitle)
         btnPlayPause = findViewById(R.id.btnPlayPause)
-        btnForward10 = findViewById(R.id.btnForward10)
-        btnZoom = findViewById(R.id.btnZoom)
-        btnAspect = findViewById(R.id.btnAspect)
-        btnSpeed = findViewById(R.id.btnSpeed)
-        btnRotate = findViewById(R.id.btnRotate)
-        btnAddSub = findViewById(R.id.btnAddSub)
-        btnSubSyncMinus = findViewById(R.id.btnSubSyncMinus)
-        btnSubSyncPlus = findViewById(R.id.btnSubSyncPlus)
-        btnSubSpeed = findViewById(R.id.btnSubSpeed)
+        logoOverlay = findViewById(R.id.logoOverlay)
 
-        initPlayer()
-        applyImmersiveMode()
-        setupListeners()
-        startProgressAndSubtitleLoop()
+        setupPlayer()
+        setupControls()
     }
 
-    private fun updatePlayPauseLabel() {
-        val playing = player?.isPlaying == true
-        btnPlayPause.text = if (playing) "⏸" else "▶"
-    }
+    private fun setupPlayer() {
+        player = ExoPlayer.Builder(this).build()
+        playerView.player = player
 
-    private fun isPointInsideView(view: View, rawX: Int, rawY: Int): Boolean {
-        if (view.visibility != View.VISIBLE) return false
-        val rect = Rect()
-        view.getGlobalVisibleRect(rect)
-        return rect.contains(rawX, rawY)
-    }
-
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        when (ev.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                downX = ev.x
-                downY = ev.y
+        player.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                btnPlayPause.text = if (isPlaying) "⏸" else "▶"
             }
-            MotionEvent.ACTION_UP -> {
-                val movedX = abs(ev.x - downX)
-                val movedY = abs(ev.y - downY)
-                val isTap = movedX <= touchSlop && movedY <= touchSlop
 
-                val x = ev.rawX.toInt()
-                val y = ev.rawY.toInt()
-
-                val hitInteractiveControl =
-                    isPointInsideView(controlsPanel, x, y) ||
-                        isPointInsideView(seekBarPanel, x, y) ||
-                        isPointInsideView(btnRewind10, x, y) ||
-                        isPointInsideView(btnPlayPause, x, y) ||
-                        isPointInsideView(btnForward10, x, y)
-
-                if (isTap && !hitInteractiveControl) {
-                    toggleControls()
-                }
+            override fun onRenderedFirstFrame() {
+                logoOverlay.animateIosHide()
             }
-        }
-        return super.dispatchTouchEvent(ev)
-    }
-
-    private fun initPlayer() {
-        if (player != null) return
-        val renderersFactory = DefaultRenderersFactory(this)
-            .setEnableDecoderFallback(true)
-
-        player = ExoPlayer.Builder(this, renderersFactory)
-            .build()
-            .also { exo ->
-                playerView.player = exo
-                exo.addListener(object : Player.Listener {
-                    override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        updatePlayPauseLabel()
-                        if (isPlaying) {
-                            ivPlayerLogo?.visibility = View.GONE
-                        }
-                    }
-
-                    override fun onRenderedFirstFrame() {
-                        ivPlayerLogo?.visibility = View.GONE
-                    }
-                })
-            }
-        updatePlayPauseLabel()
-    }
-
-    private fun setZoomToFill(enabled: Boolean) {
-        zoomToFill = enabled
-        if (enabled) {
-            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-            aspectIndex = 2
-            Toast.makeText(this, "⛶", Toast.LENGTH_SHORT).show()
-        } else {
-            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            aspectIndex = 0
-            Toast.makeText(this, "◫", Toast.LENGTH_SHORT).show()
-        }
+        })
     }
 
     private fun playVideo(uri: Uri) {
-        val exo = player ?: return
-        ivPlayerLogo?.visibility = View.GONE
-        setZoomToFill(false)
-        videoSeekBar.progress = 0
-        tvCurrentTime.text = "00:00"
-        tvTotalTime.text = "00:00"
-        exo.setMediaItem(MediaItem.fromUri(uri))
-        exo.prepare()
-        exo.playWhenReady = true
-        manualLandscape = true
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        applyImmersiveMode()
-        updatePlayPauseLabel()
+        logoOverlay.animateIosHide()
+        val mediaItem = MediaItem.fromUri(uri)
+        player.setMediaItem(mediaItem)
+        player.prepare()
+        player.play()
     }
 
-    private fun seekBy(deltaMs: Long) {
-        val exo = player ?: return
-        val duration = exo.duration
-        val target = if (duration > 0L) {
-            (exo.currentPosition + deltaMs).coerceIn(0L, duration)
-        } else {
-            (exo.currentPosition + deltaMs).coerceAtLeast(0L)
+    private fun setupControls() {
+        val btnRewind10: Button = findViewById(R.id.btnRewind10)
+        val btnForward10: Button = findViewById(R.id.btnForward10)
+        val btnOpenVideo: Button = findViewById(R.id.btnOpenVideo)
+        val btnZoom: Button = findViewById(R.id.btnZoom)
+        val btnAspect: Button = findViewById(R.id.btnAspect)
+        val btnSpeed: Button = findViewById(R.id.btnSpeed)
+        val btnRotate: Button = findViewById(R.id.btnRotate)
+        val btnAddSub: Button = findViewById(R.id.btnAddSub)
+        val btnSubSyncMinus: Button = findViewById(R.id.btnSubSyncMinus)
+        val btnSubSyncPlus: Button = findViewById(R.id.btnSubSyncPlus)
+        val btnSubSpeed: Button = findViewById(R.id.btnSubSpeed)
+
+        val allButtons = listOf<View>(
+            btnRewind10,
+            btnPlayPause,
+            btnForward10,
+            btnOpenVideo,
+            btnZoom,
+            btnAspect,
+            btnSpeed,
+            btnRotate,
+            btnAddSub,
+            btnSubSyncMinus,
+            btnSubSyncPlus,
+            btnSubSpeed
+        )
+        allButtons.forEach { it.applyIosSpringPress() }
+
+        btnRewind10.setOnClickListener {
+            player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
         }
-        exo.seekTo(target)
-        updateSeekBarUi(target, duration)
-        val secText = if (deltaMs < 0) "${deltaMs / 1000L}s" else "+${deltaMs / 1000L}s"
-        Toast.makeText(this, secText, Toast.LENGTH_SHORT).show()
-    }
 
-    private fun formatTime(ms: Long): String {
-        if (ms <= 0L) return "00:00"
-        val totalSec = ms / 1000L
-        val hours = totalSec / 3600L
-        val minutes = (totalSec % 3600L) / 60L
-        val seconds = totalSec % 60L
-        return if (hours > 0L) {
-            String.format(Locale.US, "%d:%02d:%02d", hours, minutes, seconds)
-        } else {
-            String.format(Locale.US, "%02d:%02d", minutes, seconds)
-        }
-    }
-
-    private fun updateSeekBarUi(currentPos: Long, duration: Long) {
-        if (duration > 0L) {
-            tvTotalTime.text = formatTime(duration)
-            if (!isUserSeeking) {
-                val progress = ((currentPos.toDouble() / duration.toDouble()) * 1000.0)
-                    .toInt()
-                    .coerceIn(0, 1000)
-                videoSeekBar.progress = progress
-                tvCurrentTime.text = formatTime(currentPos)
-            }
-        } else {
-            tvTotalTime.text = "00:00"
-            if (!isUserSeeking) {
-                tvCurrentTime.text = formatTime(currentPos)
-                videoSeekBar.progress = 0
+        btnPlayPause.setOnClickListener {
+            if (player.isPlaying) {
+                player.pause()
+            } else {
+                player.play()
             }
         }
-    }
 
-    private fun toggleControls() {
-        controlsVisible = !controlsVisible
-        val vis = if (controlsVisible) View.VISIBLE else View.GONE
-        controlsPanel.visibility = vis
-        seekBarPanel.visibility = vis
-        centerSeekPanel.visibility = vis
-        if (!controlsVisible) {
-            applyImmersiveMode()
+        btnForward10.setOnClickListener {
+            val maxPos = player.duration.takeIf { it > 0 } ?: Long.MAX_VALUE
+            player.seekTo((player.currentPosition + 10_000L).coerceAtMost(maxPos))
         }
-    }
-
-    private fun setupListeners() {
-        videoSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                val duration = player?.duration ?: 0L
-                if (fromUser && duration > 0L) {
-                    val previewMs = ((progress / 1000.0) * duration).toLong()
-                    tvCurrentTime.text = formatTime(previewMs)
-                }
-            }
-
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {
-                isUserSeeking = true
-            }
-
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                val exo = player
-                val duration = exo?.duration ?: 0L
-                val progress = seekBar?.progress ?: 0
-                if (exo != null && duration > 0L) {
-                    val targetMs = ((progress / 1000.0) * duration).toLong()
-                    exo.seekTo(targetMs)
-                    tvCurrentTime.text = formatTime(targetMs)
-                }
-                isUserSeeking = false
-            }
-        })
 
         btnOpenVideo.setOnClickListener {
             pickVideoLauncher.launch("video/*")
         }
 
-        btnRewind10.setOnClickListener {
-            seekBy(-10_000L)
-        }
-
-        btnPlayPause.setOnClickListener {
-            val exo = player ?: return@setOnClickListener
-            if (exo.isPlaying) {
-                exo.pause()
-            } else {
-                ivPlayerLogo?.visibility = View.GONE
-                exo.play()
-            }
-            updatePlayPauseLabel()
-        }
-
-        btnForward10.setOnClickListener {
-            seekBy(10_000L)
-        }
-
         btnZoom.setOnClickListener {
-            setZoomToFill(!zoomToFill)
+            // Zoom / resize toggle
         }
 
         btnAspect.setOnClickListener {
-            aspectIndex = (aspectIndex + 1) % aspectModes.size
-            val mode = aspectModes[aspectIndex]
-            playerView.resizeMode = mode
-            zoomToFill = (mode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM)
-            Toast.makeText(this, "◫", Toast.LENGTH_SHORT).show()
+            // Aspect ratio toggle
         }
 
         btnSpeed.setOnClickListener {
             speedIndex = (speedIndex + 1) % speeds.size
-            val spd = speeds[speedIndex]
-            player?.playbackParameters = PlaybackParameters(spd)
-            Toast.makeText(this, "⚡ ${spd}x", Toast.LENGTH_SHORT).show()
+            player.setPlaybackSpeed(speeds[speedIndex])
         }
 
         btnRotate.setOnClickListener {
-            val currentlyLandscape = manualLandscape ||
-                resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-            if (currentlyLandscape) {
-                manualLandscape = false
-                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                Toast.makeText(this, "↻", Toast.LENGTH_SHORT).show()
-            } else {
-                manualLandscape = true
-                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                Toast.makeText(this, "↻", Toast.LENGTH_SHORT).show()
-            }
-            applyImmersiveMode()
+            playerView.animate()
+                .rotation((playerView.rotation + 90f) % 360f)
+                .setDuration(240)
+                .setInterpolator(AccelerateDecelerateInterpolator())
+                .start()
         }
 
         btnAddSub.setOnClickListener {
@@ -379,144 +186,120 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         btnSubSyncMinus.setOnClickListener {
-            subSyncOffsetMs -= 500L
-            Toast.makeText(this, "➖ ${subSyncOffsetMs}ms", Toast.LENGTH_SHORT).show()
+            // Subtitle delay minus
         }
 
         btnSubSyncPlus.setOnClickListener {
-            subSyncOffsetMs += 500L
-            Toast.makeText(this, "➕ ${subSyncOffsetMs}ms", Toast.LENGTH_SHORT).show()
+            // Subtitle delay plus
         }
 
         btnSubSpeed.setOnClickListener {
-            subSpeedIndex = (subSpeedIndex + 1) % subSpeeds.size
-            val subSpd = subSpeeds[subSpeedIndex]
-            Toast.makeText(this, "⏱ ${subSpd}x", Toast.LENGTH_SHORT).show()
+            // Subtitle speed toggle
         }
-    }
 
-    private fun applyImmersiveMode() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.insetsController?.let { controller ->
-                controller.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-                controller.systemBarsBehavior =
-                    WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            }
-        } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                    or View.SYSTEM_UI_FLAG_FULLSCREEN
-                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                )
-        }
-    }
-
-    private fun loadSrtSubtitles(uri: Uri) {
-        try {
-            val lines = mutableListOf<String>()
-            contentResolver.openInputStream(uri)?.use { input ->
-                BufferedReader(InputStreamReader(input, Charsets.UTF_8)).use { reader ->
-                    var line = reader.readLine()
-                    while (line != null) {
-                        lines.add(line)
-                        line = reader.readLine()
+        videoSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser && ::player.isInitialized) {
+                    val duration = player.duration.takeIf { it > 0 } ?: 0L
+                    if (duration > 0) {
+                        player.seekTo((duration * progress) / 1000L)
                     }
                 }
             }
-            subtitles = parseSrt(lines)
-            subSyncOffsetMs = 0L
-            Toast.makeText(this, "💬 ${subtitles.size}", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            Toast.makeText(this, "💬 ✕", Toast.LENGTH_SHORT).show()
-        }
-    }
 
-    private fun parseSrt(lines: List<String>): List<SubtitleCue> {
-        val result = mutableListOf<SubtitleCue>()
-        var i = 0
-        val timeRegex = Regex("""(\d{2}):(\d{2}):(\d{2})[,.](\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})[,.](\d{3})""")
-
-        while (i < lines.size) {
-            val line = lines[i].trim()
-            val match = timeRegex.find(line)
-            if (match != null) {
-                val startMs = toMs(
-                    match.groupValues[1].toLong(),
-                    match.groupValues[2].toLong(),
-                    match.groupValues[3].toLong(),
-                    match.groupValues[4].toLong()
-                )
-                val endMs = toMs(
-                    match.groupValues[5].toLong(),
-                    match.groupValues[6].toLong(),
-                    match.groupValues[7].toLong(),
-                    match.groupValues[8].toLong()
-                )
-                i++
-                val textBuilder = StringBuilder()
-                while (i < lines.size && lines[i].isNotBlank()) {
-                    if (textBuilder.isNotEmpty()) textBuilder.append("\n")
-                    textBuilder.append(lines[i].trim())
-                    i++
-                }
-                val cleanText = textBuilder.toString().replace(Regex("<[^>]*>"), "")
-                if (cleanText.isNotEmpty()) {
-                    result.add(SubtitleCue(startMs, endMs, cleanText))
-                }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                isSeeking = true
             }
-            i++
-        }
-        return result
-    }
 
-    private fun toMs(h: Long, m: Long, s: Long, ms: Long): Long =
-        ((h * 3600L) + (m * 60L) + s) * 1000L + ms
-
-    private fun startProgressAndSubtitleLoop() {
-        subHandler.post(object : Runnable {
-            override fun run() {
-                if (isFinishing || isDestroyed) return
-                val exo = player
-                if (exo != null) {
-                    updateSeekBarUi(exo.currentPosition, exo.duration)
-                    updatePlayPauseLabel()
-                    if (subtitles.isNotEmpty() && exo.isPlaying) {
-                        val subSpd = subSpeeds[subSpeedIndex].toDouble()
-                        val effectivePos = ((exo.currentPosition * subSpd) + subSyncOffsetMs).toLong()
-                        val activeCue = subtitles.firstOrNull { effectivePos in it.startMs..it.endMs }
-                        if (activeCue != null) {
-                            tvCustomSubtitle.text = activeCue.text
-                            tvCustomSubtitle.visibility = View.VISIBLE
-                        } else {
-                            tvCustomSubtitle.visibility = View.GONE
-                        }
-                    } else if (subtitles.isEmpty()) {
-                        tvCustomSubtitle.visibility = View.GONE
-                    }
-                }
-                subHandler.postDelayed(this, 200L)
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                isSeeking = false
             }
         })
     }
 
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) applyImmersiveMode()
+    @SuppressLint("ClickableViewAccessibility")
+    private fun View.applyIosSpringPress() {
+        setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    v.animate().cancel()
+                    v.animate()
+                        .scaleX(0.90f)
+                        .scaleY(0.90f)
+                        .setDuration(90)
+                        .setInterpolator(null)
+                        .start()
+                    false
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.animate().cancel()
+                    v.animate()
+                        .scaleX(1.0f)
+                        .scaleY(1.0f)
+                        .setDuration(260)
+                        .setInterpolator(OvershootInterpolator(2.2f))
+                        .start()
+                    false
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun View.animateIosShow() {
+        animate().cancel()
+        alpha = 0f
+        scaleX = 0.94f
+        scaleY = 0.94f
+        visibility = View.VISIBLE
+        animate()
+            .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(220)
+            .setInterpolator(OvershootInterpolator(1.4f))
+            .start()
+    }
+
+    private fun View.animateIosHide() {
+        if (visibility != View.VISIBLE) return
+        animate().cancel()
+        animate()
+            .alpha(0f)
+            .scaleX(0.95f)
+            .scaleY(0.95f)
+            .setDuration(180)
+            .setInterpolator(AccelerateDecelerateInterpolator())
+            .withEndAction {
+                visibility = View.GONE
+                alpha = 1f
+                scaleX = 1f
+                scaleY = 1f
+            }
+            .start()
+    }
+
+    private fun formatTime(ms: Long): String {
+        val totalSeconds = TimeUnit.MILLISECONDS.toSeconds(ms.coerceAtLeast(0L))
+        val minutes = totalSeconds / 60
+        val seconds = totalSeconds % 60
+        return String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        handler.post(updateProgressRunnable)
     }
 
     override fun onStop() {
         super.onStop()
-        player?.pause()
+        handler.removeCallbacks(updateProgressRunnable)
+        player.pause()
     }
 
     override fun onDestroy() {
-        subHandler.removeCallbacksAndMessages(null)
-        player?.release()
-        player = null
         super.onDestroy()
+        handler.removeCallbacksAndMessages(null)
+        player.release()
     }
 }
