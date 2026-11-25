@@ -49,13 +49,6 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var tvTotalTime: TextView
     private lateinit var tvCustomSubtitle: TextView
     private lateinit var btnPlayPause: Button
-    private lateinit var btnZoom: Button
-    private lateinit var btnAspect: Button
-    private lateinit var btnSpeed: Button
-    private lateinit var btnRotate: Button
-    private lateinit var btnSubSyncMinus: Button
-    private lateinit var btnSubSyncPlus: Button
-    private lateinit var btnSubSpeed: Button
     private lateinit var logoOverlay: LinearLayout
     private var centerSeekPanel: View? = null
     private var topActionRow: View? = null
@@ -67,15 +60,12 @@ class PlayerActivity : AppCompatActivity() {
     private var controlsVisible = true
     private var isLandscape = false
 
-    // Playback speed state
     private var speedIndex = 0
     private val speeds = listOf(1.0f, 1.25f, 1.5f, 2.0f, 0.75f)
 
-    // Zoom scale state
     private var zoomIndex = 0
     private val zoomScales = listOf(1.0f, 1.25f, 1.5f, 1.75f)
 
-    // Aspect ratio state
     private var aspectIndex = 0
     private val aspectModes = listOf(
         AspectRatioFrameLayout.RESIZE_MODE_FIT to "Fit",
@@ -83,7 +73,6 @@ class PlayerActivity : AppCompatActivity() {
         AspectRatioFrameLayout.RESIZE_MODE_ZOOM to "Crop"
     )
 
-    // Subtitle state (SRT parsing + sync offset + step speed)
     private val subtitleCues = mutableListOf<SubtitleCue>()
     private var subtitleOffsetMs: Long = 0L
     private var subStepIndex = 0
@@ -140,13 +129,6 @@ class PlayerActivity : AppCompatActivity() {
         tvTotalTime = findViewById(R.id.tvTotalTime)
         tvCustomSubtitle = findViewById(R.id.tvCustomSubtitle)
         btnPlayPause = findViewById(R.id.btnPlayPause)
-        btnZoom = findViewById(R.id.btnZoom)
-        btnAspect = findViewById(R.id.btnAspect)
-        btnSpeed = findViewById(R.id.btnSpeed)
-        btnRotate = findViewById(R.id.btnRotate)
-        btnSubSyncMinus = findViewById(R.id.btnSubSyncMinus)
-        btnSubSyncPlus = findViewById(R.id.btnSubSyncPlus)
-        btnSubSpeed = findViewById(R.id.btnSubSpeed)
         logoOverlay = findViewById(R.id.logoOverlay)
         centerSeekPanel = findViewById(R.id.centerSeekPanel)
         topActionRow = findViewById(R.id.topActionRow)
@@ -160,7 +142,6 @@ class PlayerActivity : AppCompatActivity() {
         setupPlayer()
         setupControls()
         setupTapToToggleControls()
-        updateButtonLabels()
     }
 
     private fun resetPlayerTransform() {
@@ -298,22 +279,18 @@ class PlayerActivity : AppCompatActivity() {
         updateSystemBarsForOrientation(isLandscape)
     }
 
-    private fun updateButtonLabels() {
-        val currentZoom = zoomScales[zoomIndex]
-        btnZoom.text = if (currentZoom == 1.0f) "Zoom" else String.format(Locale.US, "%.2fx", currentZoom)
-        btnAspect.text = aspectModes[aspectIndex].second
-        val currentSpeed = speeds[speedIndex]
-        btnSpeed.text = if (currentSpeed == 1.0f) "Speed" else String.format(Locale.US, "%.2gx", currentSpeed)
-        btnRotate.text = if (isLandscape) "Port" else "Land"
-        val stepSec = subStepsMs[subStepIndex] / 1000.0
-        btnSubSpeed.text = if (stepSec == 0.5) "SubSpd" else String.format(Locale.US, "%.2fs", stepSec)
-    }
-
     private fun setupControls() {
         val btnRewind10: Button = findViewById(R.id.btnRewind10)
         val btnForward10: Button = findViewById(R.id.btnForward10)
         val btnOpenVideo: Button = findViewById(R.id.btnOpenVideo)
+        val btnZoom: Button = findViewById(R.id.btnZoom)
+        val btnAspect: Button = findViewById(R.id.btnAspect)
+        val btnSpeed: Button = findViewById(R.id.btnSpeed)
+        val btnRotate: Button = findViewById(R.id.btnRotate)
         val btnAddSub: Button = findViewById(R.id.btnAddSub)
+        val btnSubSyncMinus: Button = findViewById(R.id.btnSubSyncMinus)
+        val btnSubSyncPlus: Button = findViewById(R.id.btnSubSyncPlus)
+        val btnSubSpeed: Button = findViewById(R.id.btnSubSpeed)
 
         val allButtons = listOf<View>(
             btnRewind10,
@@ -329,7 +306,7 @@ class PlayerActivity : AppCompatActivity() {
             btnSubSyncPlus,
             btnSubSpeed
         )
-        allButtons.forEach { it.applyIosSpringPress() }
+        allButtons.forEach { it.applyGlassLightAnimation() }
 
         btnRewind10.setOnClickListener {
             player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
@@ -364,7 +341,6 @@ class PlayerActivity : AppCompatActivity() {
                 .setDuration(180)
                 .setInterpolator(AccelerateDecelerateInterpolator())
                 .start()
-            updateButtonLabels()
             Toast.makeText(this, "Zoom: ${scale}x", Toast.LENGTH_SHORT).show()
             resetHideControlsTimer()
         }
@@ -373,7 +349,6 @@ class PlayerActivity : AppCompatActivity() {
             aspectIndex = (aspectIndex + 1) % aspectModes.size
             val (mode, label) = aspectModes[aspectIndex]
             playerView.resizeMode = mode
-            updateButtonLabels()
             Toast.makeText(this, "Aspect: $label", Toast.LENGTH_SHORT).show()
             resetHideControlsTimer()
         }
@@ -382,14 +357,17 @@ class PlayerActivity : AppCompatActivity() {
             speedIndex = (speedIndex + 1) % speeds.size
             val newSpeed = speeds[speedIndex]
             player.setPlaybackSpeed(newSpeed)
-            updateButtonLabels()
             Toast.makeText(this, "Speed: ${newSpeed}x", Toast.LENGTH_SHORT).show()
             resetHideControlsTimer()
         }
 
         btnRotate.setOnClickListener {
             toggleLandscapeOrientation()
-            updateButtonLabels()
+            Toast.makeText(
+                this,
+                if (isLandscape) "Landscape" else "Portrait",
+                Toast.LENGTH_SHORT
+            ).show()
         }
 
         btnAddSub.setOnClickListener {
@@ -422,7 +400,6 @@ class PlayerActivity : AppCompatActivity() {
 
         btnSubSpeed.setOnClickListener {
             subStepIndex = (subStepIndex + 1) % subStepsMs.size
-            updateButtonLabels()
             val sec = subStepsMs[subStepIndex] / 1000.0
             Toast.makeText(this, "Sub step: ${sec}s", Toast.LENGTH_SHORT).show()
             resetHideControlsTimer()
@@ -555,16 +532,18 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    private fun View.applyIosSpringPress() {
+    private fun View.applyGlassLightAnimation() {
         setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     v.animate().cancel()
+                    v.alpha = 1f
                     v.animate()
-                        .scaleX(0.90f)
-                        .scaleY(0.90f)
-                        .setDuration(90)
-                        .setInterpolator(null)
+                        .scaleX(1.08f)
+                        .scaleY(1.08f)
+                        .alpha(1f)
+                        .setDuration(85)
+                        .setInterpolator(AccelerateDecelerateInterpolator())
                         .start()
                     false
                 }
@@ -573,8 +552,10 @@ class PlayerActivity : AppCompatActivity() {
                     v.animate()
                         .scaleX(1.0f)
                         .scaleY(1.0f)
+                        .alpha(0.96f)
                         .setDuration(260)
-                        .setInterpolator(OvershootInterpolator(2.2f))
+                        .setInterpolator(OvershootInterpolator(2.0f))
+                        .withEndAction { v.alpha = 1f }
                         .start()
                     false
                 }
@@ -586,15 +567,17 @@ class PlayerActivity : AppCompatActivity() {
     private fun View.animateIosShow() {
         animate().cancel()
         alpha = 0f
-        scaleX = 0.94f
-        scaleY = 0.94f
+        scaleX = 0.92f
+        scaleY = 0.92f
+        translationY = 18f
         visibility = View.VISIBLE
         animate()
             .alpha(1f)
             .scaleX(1f)
             .scaleY(1f)
-            .setDuration(220)
-            .setInterpolator(OvershootInterpolator(1.4f))
+            .translationY(0f)
+            .setDuration(240)
+            .setInterpolator(OvershootInterpolator(1.35f))
             .start()
     }
 
@@ -603,8 +586,9 @@ class PlayerActivity : AppCompatActivity() {
         animate().cancel()
         animate()
             .alpha(0f)
-            .scaleX(0.95f)
-            .scaleY(0.95f)
+            .scaleX(0.94f)
+            .scaleY(0.94f)
+            .translationY(12f)
             .setDuration(180)
             .setInterpolator(AccelerateDecelerateInterpolator())
             .withEndAction {
@@ -612,6 +596,7 @@ class PlayerActivity : AppCompatActivity() {
                 alpha = 1f
                 scaleX = 1f
                 scaleY = 1f
+                translationY = 0f
             }
             .start()
     }
