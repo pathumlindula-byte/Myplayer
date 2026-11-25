@@ -13,6 +13,7 @@ import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,6 +26,7 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.util.Locale
 
 data class SubtitleCue(
     val startMs: Long,
@@ -36,8 +38,12 @@ class PlayerActivity : AppCompatActivity() {
 
     private lateinit var playerView: PlayerView
     private lateinit var centerSeekPanel: LinearLayout
+    private lateinit var seekBarPanel: LinearLayout
     private lateinit var controlsPanel: LinearLayout
     private lateinit var tvCustomSubtitle: TextView
+    private lateinit var tvCurrentTime: TextView
+    private lateinit var tvTotalTime: TextView
+    private lateinit var videoSeekBar: SeekBar
 
     private lateinit var btnOpenVideo: Button
     private lateinit var btnRewind10: Button
@@ -55,6 +61,7 @@ class PlayerActivity : AppCompatActivity() {
     private var controlsVisible = true
     private var manualLandscape = false
     private var zoomToFill = false
+    private var isUserSeeking = false
 
     private val speeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
     private var speedIndex = 1
@@ -91,8 +98,12 @@ class PlayerActivity : AppCompatActivity() {
 
         playerView = findViewById(R.id.playerView)
         centerSeekPanel = findViewById(R.id.centerSeekPanel)
+        seekBarPanel = findViewById(R.id.seekBarPanel)
         controlsPanel = findViewById(R.id.controlsPanel)
         tvCustomSubtitle = findViewById(R.id.tvCustomSubtitle)
+        tvCurrentTime = findViewById(R.id.tvCurrentTime)
+        tvTotalTime = findViewById(R.id.tvTotalTime)
+        videoSeekBar = findViewById(R.id.videoSeekBar)
 
         btnOpenVideo = findViewById(R.id.btnOpenVideo)
         btnRewind10 = findViewById(R.id.btnRewind10)
@@ -109,7 +120,7 @@ class PlayerActivity : AppCompatActivity() {
         initPlayer()
         applyImmersiveMode()
         setupListeners()
-        startSubtitleLoop()
+        startProgressAndSubtitleLoop()
     }
 
     private fun initPlayer() {
@@ -144,6 +155,9 @@ class PlayerActivity : AppCompatActivity() {
     private fun playVideo(uri: Uri) {
         val exo = player ?: return
         setZoomToFill(false)
+        videoSeekBar.progress = 0
+        tvCurrentTime.text = "00:00"
+        tvTotalTime.text = "00:00"
         exo.setMediaItem(MediaItem.fromUri(uri))
         exo.prepare()
         exo.playWhenReady = true
@@ -161,14 +175,48 @@ class PlayerActivity : AppCompatActivity() {
             (exo.currentPosition + deltaMs).coerceAtLeast(0L)
         }
         exo.seekTo(target)
+        updateSeekBarUi(target, duration)
         val secText = if (deltaMs < 0) "${deltaMs / 1000L}s" else "+${deltaMs / 1000L}s"
         Toast.makeText(this, secText, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun formatTime(ms: Long): String {
+        if (ms <= 0L) return "00:00"
+        val totalSec = ms / 1000L
+        val hours = totalSec / 3600L
+        val minutes = (totalSec % 3600L) / 60L
+        val seconds = totalSec % 60L
+        return if (hours > 0L) {
+            String.format(Locale.US, "%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            String.format(Locale.US, "%02d:%02d", minutes, seconds)
+        }
+    }
+
+    private fun updateSeekBarUi(currentPos: Long, duration: Long) {
+        if (duration > 0L) {
+            tvTotalTime.text = formatTime(duration)
+            if (!isUserSeeking) {
+                val progress = ((currentPos.toDouble() / duration.toDouble()) * 1000.0)
+                    .toInt()
+                    .coerceIn(0, 1000)
+                videoSeekBar.progress = progress
+                tvCurrentTime.text = formatTime(currentPos)
+            }
+        } else {
+            tvTotalTime.text = "00:00"
+            if (!isUserSeeking) {
+                tvCurrentTime.text = formatTime(currentPos)
+                videoSeekBar.progress = 0
+            }
+        }
     }
 
     private fun toggleControls() {
         controlsVisible = !controlsVisible
         val vis = if (controlsVisible) View.VISIBLE else View.GONE
         controlsPanel.visibility = vis
+        seekBarPanel.visibility = vis
         centerSeekPanel.visibility = vis
         if (!controlsVisible) {
             applyImmersiveMode()
@@ -188,6 +236,32 @@ class PlayerActivity : AppCompatActivity() {
         playerView.videoSurfaceView?.setOnTouchListener(touchListener)
         findViewById<View>(R.id.rootLayout).setOnTouchListener(touchListener)
         centerSeekPanel.setOnTouchListener(touchListener)
+
+        videoSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                val duration = player?.duration ?: 0L
+                if (fromUser && duration > 0L) {
+                    val previewMs = ((progress / 1000.0) * duration).toLong()
+                    tvCurrentTime.text = formatTime(previewMs)
+                }
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                isUserSeeking = true
+            }
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                val exo = player
+                val duration = exo?.duration ?: 0L
+                val progress = seekBar?.progress ?: 0
+                if (exo != null && duration > 0L) {
+                    val targetMs = ((progress / 1000.0) * duration).toLong()
+                    exo.seekTo(targetMs)
+                    tvCurrentTime.text = formatTime(targetMs)
+                }
+                isUserSeeking = false
+            }
+        })
 
         btnOpenVideo.setOnClickListener {
             pickVideoLauncher.launch("video/*")
@@ -338,23 +412,26 @@ class PlayerActivity : AppCompatActivity() {
     private fun toMs(h: Long, m: Long, s: Long, ms: Long): Long =
         ((h * 3600L) + (m * 60L) + s) * 1000L + ms
 
-    private fun startSubtitleLoop() {
+    private fun startProgressAndSubtitleLoop() {
         subHandler.post(object : Runnable {
             override fun run() {
                 if (isFinishing || isDestroyed) return
                 val exo = player
-                if (exo != null && subtitles.isNotEmpty() && exo.isPlaying) {
-                    val subSpd = subSpeeds[subSpeedIndex].toDouble()
-                    val effectivePos = ((exo.currentPosition * subSpd) + subSyncOffsetMs).toLong()
-                    val activeCue = subtitles.firstOrNull { effectivePos in it.startMs..it.endMs }
-                    if (activeCue != null) {
-                        tvCustomSubtitle.text = activeCue.text
-                        tvCustomSubtitle.visibility = View.VISIBLE
-                    } else {
+                if (exo != null) {
+                    updateSeekBarUi(exo.currentPosition, exo.duration)
+                    if (subtitles.isNotEmpty() && exo.isPlaying) {
+                        val subSpd = subSpeeds[subSpeedIndex].toDouble()
+                        val effectivePos = ((exo.currentPosition * subSpd) + subSyncOffsetMs).toLong()
+                        val activeCue = subtitles.firstOrNull { effectivePos in it.startMs..it.endMs }
+                        if (activeCue != null) {
+                            tvCustomSubtitle.text = activeCue.text
+                            tvCustomSubtitle.visibility = View.VISIBLE
+                        } else {
+                            tvCustomSubtitle.visibility = View.GONE
+                        }
+                    } else if (subtitles.isEmpty()) {
                         tvCustomSubtitle.visibility = View.GONE
                     }
-                } else if (subtitles.isEmpty()) {
-                    tvCustomSubtitle.visibility = View.GONE
                 }
                 subHandler.postDelayed(this, 200L)
             }
@@ -378,3 +455,4 @@ class PlayerActivity : AppCompatActivity() {
         super.onDestroy()
     }
 }
+
