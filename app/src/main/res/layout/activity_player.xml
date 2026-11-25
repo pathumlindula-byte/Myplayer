@@ -1,349 +1,419 @@
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/rootLayout"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#000000">
+package com.example.myvideoplayer
 
-    <androidx.media3.ui.PlayerView
-        android:id="@+id/playerView"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:resize_mode="fit"
-        app:use_controller="false" />
+import android.annotation.SuppressLint
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
+import android.net.Uri
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.MotionEvent
+import android.view.View
+import android.view.animation.AccelerateDecelerateInterpolator
+import android.view.animation.OvershootInterpolator
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.SeekBar
+import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
+import java.util.Locale
+import java.util.concurrent.TimeUnit
 
-    <LinearLayout
-        android:id="@+id/centerSeekPanel"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:orientation="horizontal"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+class PlayerActivity : AppCompatActivity() {
 
-        <Button
-            android:id="@+id/btnRewind10"
-            android:layout_width="70dp"
-            android:layout_height="50dp"
-            android:background="@drawable/bg_green_3d_capsule"
-            android:includeFontPadding="false"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:padding="0dp"
-            android:text="⏪"
-            android:textAllCaps="false"
-            android:textColor="#FFFFFF"
-            android:textSize="22sp"
-            app:backgroundTint="@null" />
+    private lateinit var rootLayout: View
+    private lateinit var playerView: PlayerView
+    private lateinit var player: ExoPlayer
+    private lateinit var videoSeekBar: SeekBar
+    private lateinit var tvCurrentTime: TextView
+    private lateinit var tvTotalTime: TextView
+    private lateinit var tvCustomSubtitle: TextView
+    private lateinit var btnPlayPause: Button
+    private lateinit var logoOverlay: LinearLayout
+    private var centerSeekPanel: View? = null
 
-        <View
-            android:layout_width="42dp"
-            android:layout_height="1dp" />
+    private val handler = Handler(Looper.getMainLooper())
+    private var isSeeking = false
+    private var controlsVisible = true
+    private var isLandscape = false
+    private var speedIndex = 0
+    private val speeds = listOf(1.0f, 1.25f, 1.5f, 2.0f, 0.75f)
 
-        <Button
-            android:id="@+id/btnPlayPause"
-            android:layout_width="78dp"
-            android:layout_height="50dp"
-            android:background="@drawable/bg_green_3d_capsule"
-            android:includeFontPadding="false"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:padding="0dp"
-            android:text="⏸"
-            android:textAllCaps="false"
-            android:textColor="#FFFFFF"
-            android:textSize="24sp"
-            app:backgroundTint="@null" />
+    private val hideControlsRunnable = Runnable {
+        if (player.isPlaying && !isSeeking) {
+            setControlsVisibility(visible = false, animate = true)
+        }
+    }
 
-        <View
-            android:layout_width="42dp"
-            android:layout_height="1dp" />
+    private val pickVideoLauncher =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+            uri?.let { playVideo(it) }
+        }
 
-        <Button
-            android:id="@+id/btnForward10"
-            android:layout_width="70dp"
-            android:layout_height="50dp"
-            android:background="@drawable/bg_green_3d_capsule"
-            android:includeFontPadding="false"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:padding="0dp"
-            android:text="⏩"
-            android:textAllCaps="false"
-            android:textColor="#FFFFFF"
-            android:textSize="22sp"
-            app:backgroundTint="@null" />
-    </LinearLayout>
+    private val pickSubtitleLauncher =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+            uri?.let {
+                tvCustomSubtitle.animateIosShow()
+                tvCustomSubtitle.text = "Subtitle loaded"
+            }
+        }
 
-    <TextView
-        android:id="@+id/tvCustomSubtitle"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="24dp"
-        android:layout_marginEnd="24dp"
-        android:layout_marginBottom="16dp"
-        android:background="#99000000"
-        android:gravity="center"
-        android:padding="6dp"
-        android:textColor="#FFFFFF"
-        android:textSize="16sp"
-        android:visibility="gone"
-        app:layout_constraintBottom_toTopOf="@id/seekBarPanel"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
+    private val updateProgressRunnable = object : Runnable {
+        override fun run() {
+            if (::player.isInitialized && !isSeeking) {
+                val duration = player.duration.takeIf { it > 0 } ?: 0L
+                val current = player.currentPosition.takeIf { it > 0 } ?: 0L
 
-    <LinearLayout
-        android:id="@+id/seekBarPanel"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:background="@android:color/transparent"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="12dp"
-        android:paddingTop="6dp"
-        android:paddingEnd="12dp"
-        android:paddingBottom="4dp"
-        app:layout_constraintBottom_toTopOf="@id/controlsPanel"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent">
+                tvCurrentTime.text = formatTime(current)
+                tvTotalTime.text = formatTime(duration)
 
-        <TextView
-            android:id="@+id/tvCurrentTime"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="00:00"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp"
-            android:textStyle="bold" />
+                if (duration > 0) {
+                    val progress = ((current * 1000L) / duration).toInt().coerceIn(0, 1000)
+                    videoSeekBar.progress = progress
+                } else {
+                    videoSeekBar.progress = 0
+                }
+            }
+            handler.postDelayed(this, 300)
+        }
+    }
 
-        <SeekBar
-            android:id="@+id/videoSeekBar"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:max="1000"
-            android:progress="0"
-            android:progressTint="#22C55E"
-            android:thumbTint="#FFFFFF" />
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_player)
 
-        <TextView
-            android:id="@+id/tvTotalTime"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="00:00"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp"
-            android:textStyle="bold" />
-    </LinearLayout>
+        rootLayout = findViewById(R.id.rootLayout)
+        playerView = findViewById(R.id.playerView)
+        videoSeekBar = findViewById(R.id.videoSeekBar)
+        tvCurrentTime = findViewById(R.id.tvCurrentTime)
+        tvTotalTime = findViewById(R.id.tvTotalTime)
+        tvCustomSubtitle = findViewById(R.id.tvCustomSubtitle)
+        btnPlayPause = findViewById(R.id.btnPlayPause)
+        logoOverlay = findViewById(R.id.logoOverlay)
+        centerSeekPanel = findViewById(R.id.centerSeekPanel)
 
-    <LinearLayout
-        android:id="@+id/controlsPanel"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:background="@android:color/transparent"
-        android:orientation="vertical"
-        android:padding="6dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent">
+        isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        updateSystemBarsForOrientation(isLandscape)
 
-        <HorizontalScrollView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:scrollbars="none">
+        setupPlayer()
+        setupControls()
+        setupTapToToggleControls()
+    }
 
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
+    private fun setupPlayer() {
+        player = ExoPlayer.Builder(this).build()
+        playerView.player = player
+        playerView.useController = false
 
-                <Button
-                    android:id="@+id/btnOpenVideo"
-                    android:layout_width="64dp"
-                    android:layout_height="44dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="@drawable/bg_green_3d_capsule"
-                    android:includeFontPadding="false"
-                    android:minWidth="0dp"
-                    android:minHeight="0dp"
-                    android:padding="0dp"
-                    android:text="📂"
-                    android:textAllCaps="false"
-                    android:textColor="#FFFFFF"
-                    android:textSize="21sp"
-                    app:backgroundTint="@null" />
+        player.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                btnPlayPause.text = if (isPlaying) "⏸" else "▶"
+                if (isPlaying) {
+                    resetHideControlsTimer()
+                } else {
+                    handler.removeCallbacks(hideControlsRunnable)
+                    setControlsVisibility(visible = true, animate = true)
+                }
+            }
 
-                <Button
-                    android:id="@+id/btnZoom"
-                    android:layout_width="64dp"
-                    android:layout_height="44dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="@drawable/bg_green_3d_capsule"
-                    android:includeFontPadding="false"
-                    android:minWidth="0dp"
-                    android:minHeight="0dp"
-                    android:padding="0dp"
-                    android:text="⛶"
-                    android:textAllCaps="false"
-                    android:textColor="#FFFFFF"
-                    android:textSize="22sp"
-                    app:backgroundTint="@null" />
+            override fun onRenderedFirstFrame() {
+                logoOverlay.animateIosHide()
+            }
+        })
+    }
 
-                <Button
-                    android:id="@+id/btnAspect"
-                    android:layout_width="64dp"
-                    android:layout_height="44dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="@drawable/bg_green_3d_capsule"
-                    android:includeFontPadding="false"
-                    android:minWidth="0dp"
-                    android:minHeight="0dp"
-                    android:padding="0dp"
-                    android:text="◫"
-                    android:textAllCaps="false"
-                    android:textColor="#FFFFFF"
-                    android:textSize="22sp"
-                    app:backgroundTint="@null" />
+    private fun playVideo(uri: Uri) {
+        logoOverlay.animateIosHide()
+        val mediaItem = MediaItem.fromUri(uri)
+        player.setMediaItem(mediaItem)
+        player.prepare()
+        player.play()
+        resetHideControlsTimer()
+    }
 
-                <Button
-                    android:id="@+id/btnSpeed"
-                    android:layout_width="64dp"
-                    android:layout_height="44dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="@drawable/bg_green_3d_capsule"
-                    android:includeFontPadding="false"
-                    android:minWidth="0dp"
-                    android:minHeight="0dp"
-                    android:padding="0dp"
-                    android:text="⚡"
-                    android:textAllCaps="false"
-                    android:textColor="#FFFFFF"
-                    android:textSize="22sp"
-                    app:backgroundTint="@null" />
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupTapToToggleControls() {
+        playerView.setOnClickListener {
+            toggleControls()
+        }
+        rootLayout.setOnClickListener {
+            toggleControls()
+        }
+        centerSeekPanel?.setOnClickListener {
+            toggleControls()
+        }
+    }
 
-                <Button
-                    android:id="@+id/btnRotate"
-                    android:layout_width="64dp"
-                    android:layout_height="44dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="@drawable/bg_green_3d_capsule"
-                    android:includeFontPadding="false"
-                    android:minWidth="0dp"
-                    android:minHeight="0dp"
-                    android:padding="0dp"
-                    android:text="↻"
-                    android:textAllCaps="false"
-                    android:textColor="#FFFFFF"
-                    android:textSize="23sp"
-                    app:backgroundTint="@null" />
+    private fun toggleControls() {
+        setControlsVisibility(visible = !controlsVisible, animate = true)
+        if (controlsVisible && player.isPlaying) {
+            resetHideControlsTimer()
+        } else {
+            handler.removeCallbacks(hideControlsRunnable)
+        }
+    }
 
-                <Button
-                    android:id="@+id/btnAddSub"
-                    android:layout_width="64dp"
-                    android:layout_height="44dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="@drawable/bg_green_3d_capsule"
-                    android:includeFontPadding="false"
-                    android:minWidth="0dp"
-                    android:minHeight="0dp"
-                    android:padding="0dp"
-                    android:text="💬"
-                    android:textAllCaps="false"
-                    android:textColor="#FFFFFF"
-                    android:textSize="21sp"
-                    app:backgroundTint="@null" />
+    private fun setControlsVisibility(visible: Boolean, animate: Boolean) {
+        controlsVisible = visible
+        val targets = listOfNotNull<View>(
+            centerSeekPanel,
+            videoSeekBar,
+            tvCurrentTime,
+            tvTotalTime
+        )
 
-                <Button
-                    android:id="@+id/btnSubSyncMinus"
-                    android:layout_width="64dp"
-                    android:layout_height="44dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="@drawable/bg_green_3d_capsule"
-                    android:includeFontPadding="false"
-                    android:minWidth="0dp"
-                    android:minHeight="0dp"
-                    android:padding="0dp"
-                    android:text="−"
-                    android:textAllCaps="false"
-                    android:textColor="#FFFFFF"
-                    android:textSize="24sp"
-                    android:textStyle="bold"
-                    app:backgroundTint="@null" />
+        targets.forEach { view ->
+            if (visible) {
+                if (animate) view.animateIosShow() else {
+                    view.alpha = 1f
+                    view.scaleX = 1f
+                    view.scaleY = 1f
+                    view.visibility = View.VISIBLE
+                }
+            } else {
+                if (animate) view.animateIosHide() else {
+                    view.visibility = View.GONE
+                }
+            }
+        }
+    }
 
-                <Button
-                    android:id="@+id/btnSubSyncPlus"
-                    android:layout_width="64dp"
-                    android:layout_height="44dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="@drawable/bg_green_3d_capsule"
-                    android:includeFontPadding="false"
-                    android:minWidth="0dp"
-                    android:minHeight="0dp"
-                    android:padding="0dp"
-                    android:text="+"
-                    android:textAllCaps="false"
-                    android:textColor="#FFFFFF"
-                    android:textSize="24sp"
-                    android:textStyle="bold"
-                    app:backgroundTint="@null" />
+    private fun resetHideControlsTimer() {
+        handler.removeCallbacks(hideControlsRunnable)
+        handler.postDelayed(hideControlsRunnable, 3500L)
+    }
 
-                <Button
-                    android:id="@+id/btnSubSpeed"
-                    android:layout_width="64dp"
-                    android:layout_height="44dp"
-                    android:background="@drawable/bg_green_3d_capsule"
-                    android:includeFontPadding="false"
-                    android:minWidth="0dp"
-                    android:minHeight="0dp"
-                    android:padding="0dp"
-                    android:text="⏱"
-                    android:textAllCaps="false"
-                    android:textColor="#FFFFFF"
-                    android:textSize="21sp"
-                    app:backgroundTint="@null" />
-            </LinearLayout>
-        </HorizontalScrollView>
+    private fun toggleLandscapeOrientation() {
+        isLandscape = !isLandscape
+        requestedOrientation = if (isLandscape) {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+        }
+        updateSystemBarsForOrientation(isLandscape)
+        resetHideControlsTimer()
+    }
 
-    </LinearLayout>
+    private fun updateSystemBarsForOrientation(landscape: Boolean) {
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        controller.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        if (landscape) {
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            controller.show(WindowInsetsCompat.Type.systemBars())
+        }
+    }
 
-    <LinearLayout
-        android:id="@+id/logoOverlay"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:background="#05140C"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+        updateSystemBarsForOrientation(isLandscape)
+    }
 
-        <ImageView
-            android:id="@+id/ivPlayerLogo"
-            android:layout_width="110dp"
-            android:layout_height="110dp"
-            android:contentDescription="Zeno Player Logo"
-            android:src="@drawable/ic_player_logo" />
+    private fun setupControls() {
+        val btnRewind10: Button = findViewById(R.id.btnRewind10)
+        val btnForward10: Button = findViewById(R.id.btnForward10)
+        val btnOpenVideo: Button = findViewById(R.id.btnOpenVideo)
+        val btnZoom: Button = findViewById(R.id.btnZoom)
+        val btnAspect: Button = findViewById(R.id.btnAspect)
+        val btnSpeed: Button = findViewById(R.id.btnSpeed)
+        val btnRotate: Button = findViewById(R.id.btnRotate)
+        val btnAddSub: Button = findViewById(R.id.btnAddSub)
+        val btnSubSyncMinus: Button = findViewById(R.id.btnSubSyncMinus)
+        val btnSubSyncPlus: Button = findViewById(R.id.btnSubSyncPlus)
+        val btnSubSpeed: Button = findViewById(R.id.btnSubSpeed)
 
-        <TextView
-            android:id="@+id/tvAppTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="Zeno Player"
-            android:textColor="#FFFFFF"
-            android:textSize="22sp"
-            android:textStyle="bold" />
-    </LinearLayout>
+        val allButtons = listOf<View>(
+            btnRewind10,
+            btnPlayPause,
+            btnForward10,
+            btnOpenVideo,
+            btnZoom,
+            btnAspect,
+            btnSpeed,
+            btnRotate,
+            btnAddSub,
+            btnSubSyncMinus,
+            btnSubSyncPlus,
+            btnSubSpeed
+        )
+        allButtons.forEach { it.applyIosSpringPress() }
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+        btnRewind10.setOnClickListener {
+            player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
+            resetHideControlsTimer()
+        }
+
+        btnPlayPause.setOnClickListener {
+            if (player.isPlaying) {
+                player.pause()
+            } else {
+                player.play()
+                resetHideControlsTimer()
+            }
+        }
+
+        btnForward10.setOnClickListener {
+            val maxPos = player.duration.takeIf { it > 0 } ?: Long.MAX_VALUE
+            player.seekTo((player.currentPosition + 10_000L).coerceAtMost(maxPos))
+            resetHideControlsTimer()
+        }
+
+        btnOpenVideo.setOnClickListener {
+            pickVideoLauncher.launch("video/*")
+        }
+
+        btnZoom.setOnClickListener {
+            resetHideControlsTimer()
+        }
+
+        btnAspect.setOnClickListener {
+            resetHideControlsTimer()
+        }
+
+        btnSpeed.setOnClickListener {
+            speedIndex = (speedIndex + 1) % speeds.size
+            player.setPlaybackSpeed(speeds[speedIndex])
+            resetHideControlsTimer()
+        }
+
+        btnRotate.setOnClickListener {
+            toggleLandscapeOrientation()
+        }
+
+        btnAddSub.setOnClickListener {
+            pickSubtitleLauncher.launch("*/*")
+        }
+
+        btnSubSyncMinus.setOnClickListener {
+            resetHideControlsTimer()
+        }
+
+        btnSubSyncPlus.setOnClickListener {
+            resetHideControlsTimer()
+        }
+
+        btnSubSpeed.setOnClickListener {
+            resetHideControlsTimer()
+        }
+
+        videoSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser && ::player.isInitialized) {
+                    val duration = player.duration.takeIf { it > 0 } ?: 0L
+                    if (duration > 0) {
+                        player.seekTo((duration * progress) / 1000L)
+                    }
+                }
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                isSeeking = true
+                handler.removeCallbacks(hideControlsRunnable)
+            }
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                isSeeking = false
+                if (player.isPlaying) {
+                    resetHideControlsTimer()
+                }
+            }
+        })
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun View.applyIosSpringPress() {
+        setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    v.animate().cancel()
+                    v.animate()
+                        .scaleX(0.90f)
+                        .scaleY(0.90f)
+                        .setDuration(90)
+                        .setInterpolator(null)
+                        .start()
+                    false
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.animate().cancel()
+                    v.animate()
+                        .scaleX(1.0f)
+                        .scaleY(1.0f)
+                        .setDuration(260)
+                        .setInterpolator(OvershootInterpolator(2.2f))
+                        .start()
+                    false
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun View.animateIosShow() {
+        animate().cancel()
+        alpha = 0f
+        scaleX = 0.94f
+        scaleY = 0.94f
+        visibility = View.VISIBLE
+        animate()
+            .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(220)
+            .setInterpolator(OvershootInterpolator(1.4f))
+            .start()
+    }
+
+    private fun View.animateIosHide() {
+        if (visibility != View.VISIBLE) return
+        animate().cancel()
+        animate()
+            .alpha(0f)
+            .scaleX(0.95f)
+            .scaleY(0.95f)
+            .setDuration(180)
+            .setInterpolator(AccelerateDecelerateInterpolator())
+            .withEndAction {
+                visibility = View.GONE
+                alpha = 1f
+                scaleX = 1f
+                scaleY = 1f
+            }
+            .start()
+    }
+
+    private fun formatTime(ms: Long): String {
+        val totalSeconds = TimeUnit.MILLISECONDS.toSeconds(ms.coerceAtLeast(0L))
+        val minutes = totalSeconds / 60
+        val seconds = totalSeconds % 60
+        return String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        handler.post(updateProgressRunnable)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        handler.removeCallbacks(updateProgressRunnable)
+        handler.removeCallbacks(hideControlsRunnable)
+        player.pause()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        handler.removeCallbacksAndMessages(null)
+        player.release()
+    }
+}
