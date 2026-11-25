@@ -32,6 +32,8 @@
             android:id="@+id/tvBrandTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:includeFontPadding="false"
+            android:maxLines="1"
             android:text="Zeno Player"
             android:textColor="#39FF14"
             android:textSize="26sp"
@@ -45,8 +47,8 @@
         android:layout_height="wrap_content"
         android:gravity="center"
         android:orientation="horizontal"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -54,35 +56,50 @@
 
         <Button
             android:id="@+id/btnRewind10"
-            android:layout_width="70dp"
-            android:layout_height="50dp"
-            android:layout_marginEnd="12dp"
+            android:layout_width="82dp"
+            android:layout_height="48dp"
+            android:layout_marginEnd="10dp"
             android:background="@drawable/bg_green_3d_capsule"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
             android:text="-10s"
             android:textColor="#FFFFFF"
             android:textSize="13sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            app:backgroundTint="@null" />
 
         <Button
             android:id="@+id/btnPlayPause"
-            android:layout_width="76dp"
-            android:layout_height="54dp"
-            android:layout_marginEnd="12dp"
+            android:layout_width="84dp"
+            android:layout_height="52dp"
+            android:layout_marginEnd="10dp"
             android:background="@drawable/bg_green_3d_capsule"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
             android:text="▶"
             android:textColor="#FFFFFF"
             android:textSize="18sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            app:backgroundTint="@null" />
 
         <Button
             android:id="@+id/btnForward10"
-            android:layout_width="70dp"
-            android:layout_height="50dp"
+            android:layout_width="82dp"
+            android:layout_height="48dp"
             android:background="@drawable/bg_green_3d_capsule"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
             android:text="+10s"
             android:textColor="#FFFFFF"
             android:textSize="13sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            app:backgroundTint="@null" />
 
     </LinearLayout>
 
@@ -92,7 +109,7 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="20dp"
         android:layout_marginEnd="20dp"
-        android:layout_marginBottom="16dp"
+        android:layout_marginBottom="14dp"
         android:background="#88000000"
         android:gravity="center"
         android:padding="8dp"
@@ -109,6 +126,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
+        android:fillViewport="true"
         android:scrollbars="none"
         app:layout_constraintBottom_toTopOf="@+id/subActionRow"
         app:layout_constraintEnd_toEndOf="parent"
@@ -117,69 +135,94 @@
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
+            android:gravity="center"
             android:orientation="horizontal"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp">
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp">
 
             <Button
                 android:id="@+id/btnOpenVideo"
                 android:layout_width="wrap_content"
-                android:layout_height="44dp"
+                android:layout_height="42dp"
                 android:layout_marginEnd="8dp"
                 android:background="@drawable/bg_green_3d_capsule"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:minWidth="68dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
                 android:text="Video"
                 android:textColor="#FFFFFF"
-                android:textSize="12sp" />
+                android:textSize="12sp"
+                android:textStyle="bold"
+                app:backgroundTint="@null" />
 
             <Button
                 android:id="@+id/btnZoom"
                 android:layout_width="wrap_content"
-                android:layout_height="44dp"
+                android:layout_height="42dp"
                 android:layout_marginEnd="8dp"
                 android:background="@drawable/bg_green_3d_capsule"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:minWidth="66dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
                 android:text="Zoom"
                 android:textColor="#FFFFFF"
-                android:textSize="12sp" />
+                android:textSize="12sp"
+                android:textStyle="bold"
+                app:backgroundTint="@null" />
 
             <Button
                 android:id="@+id/btnAspect"
                 android:layout_width="wrap_content"
-                android:layout_height="44dp"
+                android:layout_height="42dp"
                 android:layout_marginEnd="8dp"
                 android:background="@drawable/bg_green_3d_capsule"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:minWidth="70dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
                 android:text="Aspect"
                 android:textColor="#FFFFFF"
-                android:textSize="12sp" />
+                android:textSize="12sp"
+                android:textStyle="bold"
+                app:backgroundTint="@null" />
 
             <Button
                 android:id="@+id/btnSpeed"
                 android:layout_width="wrap_content"
-                android:layout_height="44dp"
+                android:layout_height="42dp"
                 android:layout_marginEnd="8dp"
                 android:background="@drawable/bg_green_3d_capsule"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:minWidth="68dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
                 android:text="Speed"
                 android:textColor="#FFFFFF"
-                android:textSize="12sp" />
+                android:textSize="12sp"
+                android:textStyle="bold"
+                app:backgroundTint="@null" />
 
             <Button
                 android:id="@+id/btnRotate"
                 android:layout_width="wrap_content"
-                android:layout_height="44dp"
+                android:layout_height="42dp"
                 android:background="@drawable/bg_green_3d_capsule"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:minWidth="68dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
                 android:text="Rotate"
                 android:textColor="#FFFFFF"
-                android:textSize="12sp" />
+                android:textSize="12sp"
+                android:textStyle="bold"
+                app:backgroundTint="@null" />
 
         </LinearLayout>
     </HorizontalScrollView>
@@ -188,11 +231,11 @@
         android:id="@+id/subActionRow"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="8dp"
+        android:layout_marginBottom="10dp"
         android:gravity="center"
         android:orientation="horizontal"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp"
         app:layout_constraintBottom_toTopOf="@+id/seekRow"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
@@ -203,42 +246,64 @@
             android:layout_height="42dp"
             android:layout_marginEnd="8dp"
             android:background="@drawable/bg_green_3d_capsule"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:minWidth="64dp"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
             android:text="+Sub"
             android:textColor="#FFFFFF"
-            android:textSize="12sp" />
+            android:textSize="12sp"
+            android:textStyle="bold"
+            app:backgroundTint="@null" />
 
         <Button
             android:id="@+id/btnSubSyncMinus"
-            android:layout_width="54dp"
+            android:layout_width="68dp"
             android:layout_height="42dp"
             android:layout_marginEnd="8dp"
             android:background="@drawable/bg_green_3d_capsule"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
             android:text="Sub-"
             android:textColor="#FFFFFF"
-            android:textSize="12sp" />
+            android:textSize="12sp"
+            android:textStyle="bold"
+            app:backgroundTint="@null" />
 
         <Button
             android:id="@+id/btnSubSyncPlus"
-            android:layout_width="54dp"
+            android:layout_width="68dp"
             android:layout_height="42dp"
             android:layout_marginEnd="8dp"
             android:background="@drawable/bg_green_3d_capsule"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
             android:text="Sub+"
             android:textColor="#FFFFFF"
-            android:textSize="12sp" />
+            android:textSize="12sp"
+            android:textStyle="bold"
+            app:backgroundTint="@null" />
 
         <Button
             android:id="@+id/btnSubSpeed"
             android:layout_width="wrap_content"
             android:layout_height="42dp"
             android:background="@drawable/bg_green_3d_capsule"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:minWidth="74dp"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
             android:text="SubSpd"
             android:textColor="#FFFFFF"
-            android:textSize="12sp" />
+            android:textSize="12sp"
+            android:textStyle="bold"
+            app:backgroundTint="@null" />
 
     </LinearLayout>
 
@@ -259,6 +324,7 @@
             android:id="@+id/tvCurrentTime"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:maxLines="1"
             android:text="00:00"
             android:textColor="#FFFFFF"
             android:textSize="12sp" />
@@ -276,6 +342,7 @@
             android:id="@+id/tvTotalTime"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:maxLines="1"
             android:text="00:00"
             android:textColor="#FFFFFF"
             android:textSize="12sp" />
