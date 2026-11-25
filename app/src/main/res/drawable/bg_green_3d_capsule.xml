@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- ඔබනකොට / Pressed State (Light එකක් වගේ පත්තු වෙනවා) -->
     <item android:state_pressed="true">
         <layer-list>
+            <!-- Outer Neon Glow -->
             <item>
                 <shape android:shape="rectangle">
-                    <corners android:radius="999dp" />
-                    <solid android:color="#884ADE80" />
+                    <corners android:radius="26dp" />
+                    <solid android:color="#6639FF14" />
                     <padding
                         android:bottom="2dp"
                         android:left="2dp"
@@ -14,61 +16,83 @@
                         android:top="2dp" />
                 </shape>
             </item>
-
+            <!-- Bright Lit Glass Body -->
             <item>
                 <shape android:shape="rectangle">
-                    <corners android:radius="999dp" />
+                    <corners android:radius="24dp" />
                     <gradient
                         android:angle="270"
-                        android:centerColor="#22C55E"
-                        android:endColor="#16A34A"
-                        android:startColor="#BBF7D0" />
+                        android:centerColor="#28D85A"
+                        android:endColor="#148F3D"
+                        android:startColor="#9EFFB8" />
                     <stroke
-                        android:width="2.5dp"
-                        android:color="#FFFFFF" />
+                        android:width="2dp"
+                        android:color="#E8FFF0" />
+                </shape>
+            </item>
+            <!-- Top Glossy Light Reflection -->
+            <item
+                android:bottom="22dp"
+                android:left="4dp"
+                android:right="4dp"
+                android:top="2dp">
+                <shape android:shape="rectangle">
+                    <corners android:radius="20dp" />
+                    <gradient
+                        android:angle="270"
+                        android:endColor="#15FFFFFF"
+                        android:startColor="#B8FFFFFF" />
                 </shape>
             </item>
         </layer-list>
     </item>
 
+    <!-- Normal State (3D Green Glass) -->
     <item>
         <layer-list>
+            <!-- 3D Bottom Depth Shadow -->
             <item android:top="3dp">
                 <shape android:shape="rectangle">
-                    <corners android:radius="999dp" />
-                    <solid android:color="#052E16" />
-                </shape>
-            </item>
-
-            <item android:bottom="2dp">
-                <shape android:shape="rectangle">
-                    <corners android:radius="999dp" />
+                    <corners android:radius="24dp" />
                     <gradient
                         android:angle="270"
-                        android:centerColor="#15803D"
-                        android:endColor="#064E3B"
-                        android:startColor="#22C55E" />
+                        android:centerColor="#0E4D24"
+                        android:endColor="#062410"
+                        android:startColor="#197A3A" />
                     <stroke
                         android:width="1.5dp"
-                        android:color="#4ADE80" />
+                        android:color="#6669F098" />
                 </shape>
             </item>
-
-            <item
-                android:bottom="22dp"
-                android:left="6dp"
-                android:right="6dp"
-                android:top="2dp">
+            <!-- Main 3D Green Glass Body -->
+            <item android:bottom="3dp">
                 <shape android:shape="rectangle">
-                    <corners android:radius="999dp" />
+                    <corners android:radius="24dp" />
                     <gradient
                         android:angle="270"
-                        android:endColor="#00FFFFFF"
-                        android:startColor="#55DCFCE7" />
+                        android:centerColor="#147A38"
+                        android:endColor="#0A4720"
+                        android:startColor="#2EC964" />
+                    <stroke
+                        android:width="1.5dp"
+                        android:color="#99A8FFCA" />
+                </shape>
+            </item>
+            <!-- Top Glass Highlight -->
+            <item
+                android:bottom="22dp"
+                android:left="4dp"
+                android:right="4dp"
+                android:top="2dp">
+                <shape android:shape="rectangle">
+                    <corners android:radius="20dp" />
+                    <gradient
+                        android:angle="270"
+                        android:endColor="#08FFFFFF"
+                        android:startColor="#85FFFFFF" />
                 </shape>
             </item>
         </layer-list>
     </item>
 
 </selector>
-
