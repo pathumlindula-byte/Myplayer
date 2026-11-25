@@ -22,6 +22,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackParameters
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -50,6 +51,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private lateinit var btnOpenVideo: Button
     private lateinit var btnRewind10: Button
+    private lateinit var btnPlayPause: Button
     private lateinit var btnForward10: Button
     private lateinit var btnZoom: Button
     private lateinit var btnAspect: Button
@@ -116,6 +118,7 @@ class PlayerActivity : AppCompatActivity() {
 
         btnOpenVideo = findViewById(R.id.btnOpenVideo)
         btnRewind10 = findViewById(R.id.btnRewind10)
+        btnPlayPause = findViewById(R.id.btnPlayPause)
         btnForward10 = findViewById(R.id.btnForward10)
         btnZoom = findViewById(R.id.btnZoom)
         btnAspect = findViewById(R.id.btnAspect)
@@ -130,6 +133,11 @@ class PlayerActivity : AppCompatActivity() {
         applyImmersiveMode()
         setupListeners()
         startProgressAndSubtitleLoop()
+    }
+
+    private fun updatePlayPauseLabel() {
+        val playing = player?.isPlaying == true
+        btnPlayPause.text = if (playing) "Pause" else "Play"
     }
 
     private fun isPointInsideView(view: View, rawX: Int, rawY: Int): Boolean {
@@ -157,6 +165,7 @@ class PlayerActivity : AppCompatActivity() {
                     isPointInsideView(controlsPanel, x, y) ||
                         isPointInsideView(seekBarPanel, x, y) ||
                         isPointInsideView(btnRewind10, x, y) ||
+                        isPointInsideView(btnPlayPause, x, y) ||
                         isPointInsideView(btnForward10, x, y)
 
                 if (isTap && !hitInteractiveControl) {
@@ -176,7 +185,13 @@ class PlayerActivity : AppCompatActivity() {
             .build()
             .also { exo ->
                 playerView.player = exo
+                exo.addListener(object : Player.Listener {
+                    override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        updatePlayPauseLabel()
+                    }
+                })
             }
+        updatePlayPauseLabel()
     }
 
     private fun setZoomToFill(enabled: Boolean) {
@@ -208,6 +223,7 @@ class PlayerActivity : AppCompatActivity() {
         manualLandscape = true
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         applyImmersiveMode()
+        updatePlayPauseLabel()
     }
 
     private fun seekBy(deltaMs: Long) {
@@ -300,6 +316,16 @@ class PlayerActivity : AppCompatActivity() {
 
         btnRewind10.setOnClickListener {
             seekBy(-10_000L)
+        }
+
+        btnPlayPause.setOnClickListener {
+            val exo = player ?: return@setOnClickListener
+            if (exo.isPlaying) {
+                exo.pause()
+            } else {
+                exo.play()
+            }
+            updatePlayPauseLabel()
         }
 
         btnForward10.setOnClickListener {
@@ -450,6 +476,7 @@ class PlayerActivity : AppCompatActivity() {
                 val exo = player
                 if (exo != null) {
                     updateSeekBarUi(exo.currentPosition, exo.duration)
+                    updatePlayPauseLabel()
                     if (subtitles.isNotEmpty() && exo.isPlaying) {
                         val subSpd = subSpeeds[subSpeedIndex].toDouble()
                         val effectivePos = ((exo.currentPosition * subSpd) + subSyncOffsetMs).toLong()
