@@ -35,6 +35,7 @@ data class SubtitleCue(
 class PlayerActivity : AppCompatActivity() {
 
     private lateinit var playerView: PlayerView
+    private lateinit var centerSeekPanel: LinearLayout
     private lateinit var controlsPanel: LinearLayout
     private lateinit var tvCustomSubtitle: TextView
 
@@ -53,9 +54,7 @@ class PlayerActivity : AppCompatActivity() {
     private var player: ExoPlayer? = null
     private var controlsVisible = true
     private var manualLandscape = false
-
-    private val zoomLevels = listOf(1.0f, 1.25f, 1.5f, 2.0f)
-    private var zoomIndex = 0
+    private var zoomToFill = false
 
     private val speeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
     private var speedIndex = 1
@@ -91,6 +90,7 @@ class PlayerActivity : AppCompatActivity() {
         setContentView(R.layout.activity_player)
 
         playerView = findViewById(R.id.playerView)
+        centerSeekPanel = findViewById(R.id.centerSeekPanel)
         controlsPanel = findViewById(R.id.controlsPanel)
         tvCustomSubtitle = findViewById(R.id.tvCustomSubtitle)
 
@@ -124,23 +124,31 @@ class PlayerActivity : AppCompatActivity() {
             }
     }
 
-    private fun resetZoom() {
-        zoomIndex = 0
-        val zoom = zoomLevels[zoomIndex]
-        playerView.videoSurfaceView?.scaleX = zoom
-        playerView.videoSurfaceView?.scaleY = zoom
-        btnZoom.text = "Zoom: ${zoom}x"
+    private fun setZoomToFill(enabled: Boolean) {
+        zoomToFill = enabled
+        if (enabled) {
+            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            btnZoom.text = "Zoom: Fill"
+            btnAspect.text = "Aspect: Zoom"
+            aspectIndex = 2
+            Toast.makeText(this, "Zoom to Fill", Toast.LENGTH_SHORT).show()
+        } else {
+            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            btnZoom.text = "Zoom: Fit"
+            btnAspect.text = "Aspect: Fit"
+            aspectIndex = 0
+            Toast.makeText(this, "Zoom: Fit", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun playVideo(uri: Uri) {
         val exo = player ?: return
-        resetZoom()
+        setZoomToFill(false)
         exo.setMediaItem(MediaItem.fromUri(uri))
         exo.prepare()
         exo.playWhenReady = true
         manualLandscape = true
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         applyImmersiveMode()
     }
 
@@ -159,7 +167,9 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun toggleControls() {
         controlsVisible = !controlsVisible
-        controlsPanel.visibility = if (controlsVisible) View.VISIBLE else View.GONE
+        val vis = if (controlsVisible) View.VISIBLE else View.GONE
+        controlsPanel.visibility = vis
+        centerSeekPanel.visibility = vis
         if (!controlsVisible) {
             applyImmersiveMode()
         }
@@ -171,12 +181,13 @@ class PlayerActivity : AppCompatActivity() {
                 toggleControls()
                 v.performClick()
             }
-            true
+            false
         }
 
         playerView.setOnTouchListener(touchListener)
         playerView.videoSurfaceView?.setOnTouchListener(touchListener)
         findViewById<View>(R.id.rootLayout).setOnTouchListener(touchListener)
+        centerSeekPanel.setOnTouchListener(touchListener)
 
         btnOpenVideo.setOnClickListener {
             pickVideoLauncher.launch("video/*")
@@ -191,17 +202,15 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         btnZoom.setOnClickListener {
-            zoomIndex = (zoomIndex + 1) % zoomLevels.size
-            val zoom = zoomLevels[zoomIndex]
-            playerView.videoSurfaceView?.scaleX = zoom
-            playerView.videoSurfaceView?.scaleY = zoom
-            btnZoom.text = "Zoom: ${zoom}x"
+            setZoomToFill(!zoomToFill)
         }
 
         btnAspect.setOnClickListener {
             aspectIndex = (aspectIndex + 1) % aspectModes.size
             val (mode, label) = aspectModes[aspectIndex]
             playerView.resizeMode = mode
+            zoomToFill = (mode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM)
+            btnZoom.text = if (zoomToFill) "Zoom: Fill" else "Zoom: Fit"
             btnAspect.text = "Aspect: $label"
         }
 
