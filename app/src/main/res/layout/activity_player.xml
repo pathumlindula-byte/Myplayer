@@ -1,313 +1,127 @@
-package com.example.myvideoplayer
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/rootLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
 
-import android.content.pm.ActivityInfo
-import android.content.res.Configuration
-import android.net.Uri
-import android.os.Build
-import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.view.View
-import android.view.WindowInsets
-import android.view.WindowInsetsController
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
-import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackParameters
-import androidx.media3.common.Player
-import androidx.media3.exoplayer.DefaultRenderersFactory
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.AspectRatioFrameLayout
-import androidx.media3.ui.PlayerView
-import java.io.BufferedReader
-import java.io.InputStreamReader
+    <androidx.media3.ui.PlayerView
+        android:id="@+id/playerView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:resize_mode="fit"
+        app:use_controller="false" />
 
-data class SubtitleCue(
-    val startMs: Long,
-    val endMs: Long,
-    val text: String
-)
+    <TextView
+        android:id="@+id/tvCustomSubtitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="16dp"
+        android:background="#88000000"
+        android:gravity="center"
+        android:padding="6dp"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/controlsPanel"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
 
-class PlayerActivity : AppCompatActivity() {
+    <LinearLayout
+        android:id="@+id/controlsPanel"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:background="#AA000000"
+        android:orientation="vertical"
+        android:padding="4dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
 
-    private lateinit var playerView: PlayerView
-    private lateinit var controlsPanel: LinearLayout
-    private lateinit var tvCustomSubtitle: TextView
+        <LinearLayout
+            android:id="@+id/controlsRow1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
 
-    private lateinit var btnOpenVideo: Button
-    private lateinit var btnAspect: Button
-    private lateinit var btnSpeed: Button
-    private lateinit var btnRotate: Button
-    private lateinit var btnAddSub: Button
-    private lateinit var btnSubSyncMinus: Button
-    private lateinit var btnSubSyncPlus: Button
-    private lateinit var btnSubSpeed: Button
+            <Button
+                android:id="@+id/btnOpenVideo"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Video"
+                android:textSize="12sp" />
 
-    private var player: ExoPlayer? = null
-    private var controlsVisible = true
+            <Button
+                android:id="@+id/btnAspect"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Aspect: Fit"
+                android:textSize="12sp" />
 
-    private val speeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
-    private var speedIndex = 1
+            <Button
+                android:id="@+id/btnSpeed"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Speed: 1.0x"
+                android:textSize="12sp" />
 
-    private val aspectModes = listOf(
-        AspectRatioFrameLayout.RESIZE_MODE_FIT to "Fit",
-        AspectRatioFrameLayout.RESIZE_MODE_FILL to "Fill",
-        AspectRatioFrameLayout.RESIZE_MODE_ZOOM to "Zoom"
-    )
-    private var aspectIndex = 0
+            <Button
+                android:id="@+id/btnRotate"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Rotate"
+                android:textSize="12sp" />
+        </LinearLayout>
 
-    private val subSpeeds = listOf(0.75f, 1.0f, 1.25f, 1.5f)
-    private var subSpeedIndex = 1
-    private var subSyncOffsetMs: Long = 0L
-    private var subtitles: List<SubtitleCue> = emptyList()
+        <LinearLayout
+            android:id="@+id/controlsRow2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
 
-    private val subHandler = Handler(Looper.getMainLooper())
+            <Button
+                android:id="@+id/btnAddSub"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Sub"
+                android:textSize="12sp" />
 
-    private val pickVideoLauncher = registerForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let { playVideo(it) }
-    }
+            <Button
+                android:id="@+id/btnSubSyncMinus"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="-0.5s"
+                android:textSize="12sp" />
 
-    private val pickSubtitleLauncher = registerForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let { loadSrtSubtitles(it) }
-    }
+            <Button
+                android:id="@+id/btnSubSyncPlus"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="+0.5s"
+                android:textSize="12sp" />
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_player)
+            <Button
+                android:id="@+id/btnSubSpeed"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="SubSpd: 1.0x"
+                android:textSize="12sp" />
+        </LinearLayout>
 
-        playerView = findViewById(R.id.playerView)
-        controlsPanel = findViewById(R.id.controlsPanel)
-        tvCustomSubtitle = findViewById(R.id.tvCustomSubtitle)
+    </LinearLayout>
 
-        btnOpenVideo = findViewById(R.id.btnOpenVideo)
-        btnAspect = findViewById(R.id.btnAspect)
-        btnSpeed = findViewById(R.id.btnSpeed)
-        btnRotate = findViewById(R.id.btnRotate)
-        btnAddSub = findViewById(R.id.btnAddSub)
-        btnSubSyncMinus = findViewById(R.id.btnSubSyncMinus)
-        btnSubSyncPlus = findViewById(R.id.btnSubSyncPlus)
-        btnSubSpeed = findViewById(R.id.btnSubSpeed)
-
-        initPlayer()
-        applyImmersiveMode()
-        setupListeners()
-        startSubtitleLoop()
-    }
-
-    private fun initPlayer() {
-        if (player != null) return
-        val renderersFactory = DefaultRenderersFactory(this)
-            .setEnableDecoderFallback(true)
-
-        player = ExoPlayer.Builder(this, renderersFactory)
-            .build()
-            .also { exo ->
-                playerView.player = exo
-                exo.addListener(object : Player.Listener {
-                    override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        if (isPlaying) {
-                            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                            applyImmersiveMode()
-                        }
-                    }
-                })
-            }
-    }
-
-    private fun playVideo(uri: Uri) {
-        val exo = player ?: return
-        exo.setMediaItem(MediaItem.fromUri(uri))
-        exo.prepare()
-        exo.playWhenReady = true
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        applyImmersiveMode()
-    }
-
-    private fun setupListeners() {
-        val toggleTap = View.OnClickListener {
-            controlsVisible = !controlsVisible
-            controlsPanel.visibility = if (controlsVisible) View.VISIBLE else View.GONE
-            if (!controlsVisible) applyImmersiveMode()
-        }
-        playerView.setOnClickListener(toggleTap)
-        findViewById<View>(R.id.rootLayout).setOnClickListener(toggleTap)
-
-        btnOpenVideo.setOnClickListener {
-            pickVideoLauncher.launch("video/*")
-        }
-
-        btnAspect.setOnClickListener {
-            aspectIndex = (aspectIndex + 1) % aspectModes.size
-            val (mode, label) = aspectModes[aspectIndex]
-            playerView.resizeMode = mode
-            btnAspect.text = "Aspect: $label"
-        }
-
-        btnSpeed.setOnClickListener {
-            speedIndex = (speedIndex + 1) % speeds.size
-            val spd = speeds[speedIndex]
-            player?.playbackParameters = PlaybackParameters(spd)
-            btnSpeed.text = "Speed: ${spd}x"
-        }
-
-        btnRotate.setOnClickListener {
-            val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-            requestedOrientation = if (isLandscape) {
-                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            } else {
-                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-            }
-            applyImmersiveMode()
-        }
-
-        btnAddSub.setOnClickListener {
-            pickSubtitleLauncher.launch("*/*")
-        }
-
-        btnSubSyncMinus.setOnClickListener {
-            subSyncOffsetMs -= 500L
-            Toast.makeText(this, "Sub Sync: ${subSyncOffsetMs}ms", Toast.LENGTH_SHORT).show()
-        }
-
-        btnSubSyncPlus.setOnClickListener {
-            subSyncOffsetMs += 500L
-            Toast.makeText(this, "Sub Sync: ${subSyncOffsetMs}ms", Toast.LENGTH_SHORT).show()
-        }
-
-        btnSubSpeed.setOnClickListener {
-            subSpeedIndex = (subSpeedIndex + 1) % subSpeeds.size
-            val subSpd = subSpeeds[subSpeedIndex]
-            btnSubSpeed.text = "SubSpd: ${subSpd}x"
-        }
-    }
-
-    private fun applyImmersiveMode() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.insetsController?.let { controller ->
-                controller.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-                controller.systemBarsBehavior =
-                    WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            }
-        } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                    or View.SYSTEM_UI_FLAG_FULLSCREEN
-                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                )
-        }
-    }
-
-    private fun loadSrtSubtitles(uri: Uri) {
-        try {
-            val lines = mutableListOf<String>()
-            contentResolver.openInputStream(uri)?.use { input ->
-                BufferedReader(InputStreamReader(input, Charsets.UTF_8)).use { reader ->
-                    var line = reader.readLine()
-                    while (line != null) {
-                        lines.add(line)
-                        line = reader.readLine()
-                    }
-                }
-            }
-            subtitles = parseSrt(lines)
-            subSyncOffsetMs = 0L
-            Toast.makeText(this, "Loaded ${subtitles.size} subs", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            Toast.makeText(this, "Failed to load SRT", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun parseSrt(lines: List<String>): List<SubtitleCue> {
-        val result = mutableListOf<SubtitleCue>()
-        var i = 0
-        val timeRegex = Regex("""(\d{2}):(\d{2}):(\d{2})[,.](\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})[,.](\d{3})""")
-
-        while (i < lines.size) {
-            val line = lines[i].trim()
-            val match = timeRegex.find(line)
-            if (match != null) {
-                val startMs = toMs(
-                    match.groupValues[1].toLong(),
-                    match.groupValues[2].toLong(),
-                    match.groupValues[3].toLong(),
-                    match.groupValues[4].toLong()
-                )
-                val endMs = toMs(
-                    match.groupValues[5].toLong(),
-                    match.groupValues[6].toLong(),
-                    match.groupValues[7].toLong(),
-                    match.groupValues[8].toLong()
-                )
-                i++
-                val textBuilder = StringBuilder()
-                while (i < lines.size && lines[i].isNotBlank()) {
-                    if (textBuilder.isNotEmpty()) textBuilder.append("\n")
-                    textBuilder.append(lines[i].trim())
-                    i++
-                }
-                val cleanText = textBuilder.toString().replace(Regex("<[^>]*>"), "")
-                if (cleanText.isNotEmpty()) {
-                    result.add(SubtitleCue(startMs, endMs, cleanText))
-                }
-            }
-            i++
-        }
-        return result
-    }
-
-    private fun toMs(h: Long, m: Long, s: Long, ms: Long): Long =
-        ((h * 3600L) + (m * 60L) + s) * 1000L + ms
-
-    private fun startSubtitleLoop() {
-        subHandler.post(object : Runnable {
-            override fun run() {
-                if (isFinishing || isDestroyed) return
-                val exo = player
-                if (exo != null && subtitles.isNotEmpty() && exo.isPlaying) {
-                    val subSpd = subSpeeds[subSpeedIndex].toDouble()
-                    val effectivePos = ((exo.currentPosition * subSpd) + subSyncOffsetMs).toLong()
-                    val activeCue = subtitles.firstOrNull { effectivePos in it.startMs..it.endMs }
-                    if (activeCue != null) {
-                        tvCustomSubtitle.text = activeCue.text
-                        tvCustomSubtitle.visibility = View.VISIBLE
-                    } else {
-                        tvCustomSubtitle.visibility = View.GONE
-                    }
-                } else if (subtitles.isEmpty()) {
-                    tvCustomSubtitle.visibility = View.GONE
-                }
-                subHandler.postDelayed(this, 200L)
-            }
-        })
-    }
-
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) applyImmersiveMode()
-    }
-
-    override fun onStop() {
-        super.onStop()
-        player?.pause()
-    }
-
-    override fun onDestroy() {
-        subHandler.removeCallbacksAndMessages(null)
-        player?.release()
-        player = null
-        super.onDestroy()
-    }
-}
-
+</androidx.constraintlayout.widget.ConstraintLayout>
