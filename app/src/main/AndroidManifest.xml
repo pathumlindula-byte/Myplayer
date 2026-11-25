@@ -7,7 +7,7 @@
     <application
         android:allowBackup="true"
         android:label="Zeno Player"
-        android:theme="@style/Theme.MyVideoPlayer">
+        android:theme="@style/Theme.Material3.DayNight.NoActionBar">
 
         <activity
             android:name=".PlayerActivity"
