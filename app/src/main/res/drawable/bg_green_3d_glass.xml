@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Pressed / Light-Flash State -->
+    <item android:state_pressed="true">
+        <layer-list>
+            <!-- Outer neon green glow -->
+            <item>
+                <shape android:shape="rectangle">
+                    <corners android:radius="26dp" />
+                    <solid android:color="#AA39FF14" />
+                    <padding
+                        android:bottom="2dp"
+                        android:left="2dp"
+                        android:right="2dp"
+                        android:top="2dp" />
+                </shape>
+            </item>
+
+            <!-- Bright glossy green body on press -->
+            <item>
+                <shape android:shape="rectangle">
+                    <corners android:radius="24dp" />
+                    <gradient
+                        android:angle="270"
+                        android:centerColor="#45F57A"
+                        android:endColor="#1DB954"
+                        android:startColor="#D8FFE3" />
+                    <stroke
+                        android:width="2dp"
+                        android:color="#FFFFFF" />
+                </shape>
+            </item>
+
+            <!-- Top glass specular flash -->
+            <item
+                android:bottom="20dp"
+                android:left="4dp"
+                android:right="4dp"
+                android:top="2dp">
+                <shape android:shape="rectangle">
+                    <corners android:radius="20dp" />
+                    <gradient
+                        android:angle="270"
+                        android:endColor="#28FFFFFF"
+                        android:startColor="#E6FFFFFF" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+
+    <!-- Default 3D Green Glass State -->
+    <item>
+        <layer-list>
+            <!-- Bottom 3D depth lip -->
+            <item android:top="3dp">
+                <shape android:shape="rectangle">
+                    <corners android:radius="24dp" />
+                    <gradient
+                        android:angle="270"
+                        android:centerColor="#0E4D24"
+                        android:endColor="#062410"
+                        android:startColor="#197A3A" />
+                    <stroke
+                        android:width="1.5dp"
+                        android:color="#6669F098" />
+                </shape>
+            </item>
+
+            <!-- Main 3D green glass surface -->
+            <item android:bottom="3dp">
+                <shape android:shape="rectangle">
+                    <corners android:radius="24dp" />
+                    <gradient
+                        android:angle="270"
+                        android:centerColor="#147A38"
+                        android:endColor="#0A4720"
+                        android:startColor="#2EC964" />
+                    <stroke
+                        android:width="1.5dp"
+                        android:color="#99A8FFCA" />
+                </shape>
+            </item>
+
+            <!-- Upper glass reflection highlight -->
+            <item
+                android:bottom="20dp"
+                android:left="4dp"
+                android:right="4dp"
+                android:top="2dp">
+                <shape android:shape="rectangle">
+                    <corners android:radius="20dp" />
+                    <gradient
+                        android:angle="270"
+                        android:endColor="#08FFFFFF"
+                        android:startColor="#8CFFFFFF" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+
+</selector>
