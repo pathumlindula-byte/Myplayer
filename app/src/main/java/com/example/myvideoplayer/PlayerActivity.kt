@@ -39,6 +39,9 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var tvCustomSubtitle: TextView
 
     private lateinit var btnOpenVideo: Button
+    private lateinit var btnRewind10: Button
+    private lateinit var btnForward10: Button
+    private lateinit var btnZoom: Button
     private lateinit var btnAspect: Button
     private lateinit var btnSpeed: Button
     private lateinit var btnRotate: Button
@@ -50,6 +53,9 @@ class PlayerActivity : AppCompatActivity() {
     private var player: ExoPlayer? = null
     private var controlsVisible = true
     private var manualLandscape = false
+
+    private val zoomLevels = listOf(1.0f, 1.25f, 1.5f, 2.0f)
+    private var zoomIndex = 0
 
     private val speeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
     private var speedIndex = 1
@@ -89,6 +95,9 @@ class PlayerActivity : AppCompatActivity() {
         tvCustomSubtitle = findViewById(R.id.tvCustomSubtitle)
 
         btnOpenVideo = findViewById(R.id.btnOpenVideo)
+        btnRewind10 = findViewById(R.id.btnRewind10)
+        btnForward10 = findViewById(R.id.btnForward10)
+        btnZoom = findViewById(R.id.btnZoom)
         btnAspect = findViewById(R.id.btnAspect)
         btnSpeed = findViewById(R.id.btnSpeed)
         btnRotate = findViewById(R.id.btnRotate)
@@ -115,8 +124,17 @@ class PlayerActivity : AppCompatActivity() {
             }
     }
 
+    private fun resetZoom() {
+        zoomIndex = 0
+        val zoom = zoomLevels[zoomIndex]
+        playerView.videoSurfaceView?.scaleX = zoom
+        playerView.videoSurfaceView?.scaleY = zoom
+        btnZoom.text = "Zoom: ${zoom}x"
+    }
+
     private fun playVideo(uri: Uri) {
         val exo = player ?: return
+        resetZoom()
         exo.setMediaItem(MediaItem.fromUri(uri))
         exo.prepare()
         exo.playWhenReady = true
@@ -124,6 +142,19 @@ class PlayerActivity : AppCompatActivity() {
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         applyImmersiveMode()
+    }
+
+    private fun seekBy(deltaMs: Long) {
+        val exo = player ?: return
+        val duration = exo.duration
+        val target = if (duration > 0L) {
+            (exo.currentPosition + deltaMs).coerceIn(0L, duration)
+        } else {
+            (exo.currentPosition + deltaMs).coerceAtLeast(0L)
+        }
+        exo.seekTo(target)
+        val secText = if (deltaMs < 0) "${deltaMs / 1000L}s" else "+${deltaMs / 1000L}s"
+        Toast.makeText(this, secText, Toast.LENGTH_SHORT).show()
     }
 
     private fun toggleControls() {
@@ -149,6 +180,22 @@ class PlayerActivity : AppCompatActivity() {
 
         btnOpenVideo.setOnClickListener {
             pickVideoLauncher.launch("video/*")
+        }
+
+        btnRewind10.setOnClickListener {
+            seekBy(-10_000L)
+        }
+
+        btnForward10.setOnClickListener {
+            seekBy(10_000L)
+        }
+
+        btnZoom.setOnClickListener {
+            zoomIndex = (zoomIndex + 1) % zoomLevels.size
+            val zoom = zoomLevels[zoomIndex]
+            playerView.videoSurfaceView?.scaleX = zoom
+            playerView.videoSurfaceView?.scaleY = zoom
+            btnZoom.text = "Zoom: ${zoom}x"
         }
 
         btnAspect.setOnClickListener {
