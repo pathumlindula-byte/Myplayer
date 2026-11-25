@@ -2,6 +2,7 @@ package com.example.myvideoplayer
 
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
+import android.graphics.Rect
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -9,6 +10,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.widget.Button
@@ -27,6 +29,7 @@ import androidx.media3.ui.PlayerView
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.util.Locale
+import kotlin.math.abs
 
 data class SubtitleCue(
     val startMs: Long,
@@ -63,6 +66,10 @@ class PlayerActivity : AppCompatActivity() {
     private var zoomToFill = false
     private var isUserSeeking = false
 
+    private var downX = 0f
+    private var downY = 0f
+    private var touchSlop = 24
+
     private val speeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
     private var speedIndex = 1
 
@@ -96,6 +103,8 @@ class PlayerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_player)
 
+        touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+
         playerView = findViewById(R.id.playerView)
         centerSeekPanel = findViewById(R.id.centerSeekPanel)
         seekBarPanel = findViewById(R.id.seekBarPanel)
@@ -121,6 +130,41 @@ class PlayerActivity : AppCompatActivity() {
         applyImmersiveMode()
         setupListeners()
         startProgressAndSubtitleLoop()
+    }
+
+    private fun isPointInsideView(view: View, rawX: Int, rawY: Int): Boolean {
+        if (view.visibility != View.VISIBLE) return false
+        val rect = Rect()
+        view.getGlobalVisibleRect(rect)
+        return rect.contains(rawX, rawY)
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = ev.x
+                downY = ev.y
+            }
+            MotionEvent.ACTION_UP -> {
+                val movedX = abs(ev.x - downX)
+                val movedY = abs(ev.y - downY)
+                val isTap = movedX <= touchSlop && movedY <= touchSlop
+
+                val x = ev.rawX.toInt()
+                val y = ev.rawY.toInt()
+
+                val hitInteractiveControl =
+                    isPointInsideView(controlsPanel, x, y) ||
+                        isPointInsideView(seekBarPanel, x, y) ||
+                        isPointInsideView(btnRewind10, x, y) ||
+                        isPointInsideView(btnForward10, x, y)
+
+                if (isTap && !hitInteractiveControl) {
+                    toggleControls()
+                }
+            }
+        }
+        return super.dispatchTouchEvent(ev)
     }
 
     private fun initPlayer() {
@@ -224,19 +268,6 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setupListeners() {
-        val touchListener = View.OnTouchListener { v, event ->
-            if (event.action == MotionEvent.ACTION_UP) {
-                toggleControls()
-                v.performClick()
-            }
-            false
-        }
-
-        playerView.setOnTouchListener(touchListener)
-        playerView.videoSurfaceView?.setOnTouchListener(touchListener)
-        findViewById<View>(R.id.rootLayout).setOnTouchListener(touchListener)
-        centerSeekPanel.setOnTouchListener(touchListener)
-
         videoSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 val duration = player?.duration ?: 0L
@@ -455,4 +486,3 @@ class PlayerActivity : AppCompatActivity() {
         super.onDestroy()
     }
 }
-
