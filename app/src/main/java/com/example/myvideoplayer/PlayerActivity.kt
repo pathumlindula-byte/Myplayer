@@ -14,6 +14,7 @@ import android.view.ViewConfiguration
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.widget.Button
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
@@ -48,6 +49,7 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var tvCurrentTime: TextView
     private lateinit var tvTotalTime: TextView
     private lateinit var videoSeekBar: SeekBar
+    private var ivPlayerLogo: ImageView? = null
 
     private lateinit var btnOpenVideo: Button
     private lateinit var btnRewind10: Button
@@ -76,9 +78,9 @@ class PlayerActivity : AppCompatActivity() {
     private var speedIndex = 1
 
     private val aspectModes = listOf(
-        AspectRatioFrameLayout.RESIZE_MODE_FIT to "Fit",
-        AspectRatioFrameLayout.RESIZE_MODE_FILL to "Fill",
-        AspectRatioFrameLayout.RESIZE_MODE_ZOOM to "Zoom"
+        AspectRatioFrameLayout.RESIZE_MODE_FIT,
+        AspectRatioFrameLayout.RESIZE_MODE_FILL,
+        AspectRatioFrameLayout.RESIZE_MODE_ZOOM
     )
     private var aspectIndex = 0
 
@@ -115,6 +117,7 @@ class PlayerActivity : AppCompatActivity() {
         tvCurrentTime = findViewById(R.id.tvCurrentTime)
         tvTotalTime = findViewById(R.id.tvTotalTime)
         videoSeekBar = findViewById(R.id.videoSeekBar)
+        ivPlayerLogo = findViewById(R.id.ivPlayerLogo)
 
         btnOpenVideo = findViewById(R.id.btnOpenVideo)
         btnRewind10 = findViewById(R.id.btnRewind10)
@@ -137,7 +140,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun updatePlayPauseLabel() {
         val playing = player?.isPlaying == true
-        btnPlayPause.text = if (playing) "Pause" else "Play"
+        btnPlayPause.text = if (playing) "⏸" else "▶"
     }
 
     private fun isPointInsideView(view: View, rawX: Int, rawY: Int): Boolean {
@@ -188,6 +191,13 @@ class PlayerActivity : AppCompatActivity() {
                 exo.addListener(object : Player.Listener {
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
                         updatePlayPauseLabel()
+                        if (isPlaying) {
+                            ivPlayerLogo?.visibility = View.GONE
+                        }
+                    }
+
+                    override fun onRenderedFirstFrame() {
+                        ivPlayerLogo?.visibility = View.GONE
                     }
                 })
             }
@@ -198,21 +208,18 @@ class PlayerActivity : AppCompatActivity() {
         zoomToFill = enabled
         if (enabled) {
             playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-            btnZoom.text = "Zoom: Fill"
-            btnAspect.text = "Aspect: Zoom"
             aspectIndex = 2
-            Toast.makeText(this, "Zoom to Fill", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "⛶", Toast.LENGTH_SHORT).show()
         } else {
             playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            btnZoom.text = "Zoom: Fit"
-            btnAspect.text = "Aspect: Fit"
             aspectIndex = 0
-            Toast.makeText(this, "Zoom: Fit", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "◫", Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun playVideo(uri: Uri) {
         val exo = player ?: return
+        ivPlayerLogo?.visibility = View.GONE
         setZoomToFill(false)
         videoSeekBar.progress = 0
         tvCurrentTime.text = "00:00"
@@ -323,6 +330,7 @@ class PlayerActivity : AppCompatActivity() {
             if (exo.isPlaying) {
                 exo.pause()
             } else {
+                ivPlayerLogo?.visibility = View.GONE
                 exo.play()
             }
             updatePlayPauseLabel()
@@ -338,18 +346,17 @@ class PlayerActivity : AppCompatActivity() {
 
         btnAspect.setOnClickListener {
             aspectIndex = (aspectIndex + 1) % aspectModes.size
-            val (mode, label) = aspectModes[aspectIndex]
+            val mode = aspectModes[aspectIndex]
             playerView.resizeMode = mode
             zoomToFill = (mode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM)
-            btnZoom.text = if (zoomToFill) "Zoom: Fill" else "Zoom: Fit"
-            btnAspect.text = "Aspect: $label"
+            Toast.makeText(this, "◫", Toast.LENGTH_SHORT).show()
         }
 
         btnSpeed.setOnClickListener {
             speedIndex = (speedIndex + 1) % speeds.size
             val spd = speeds[speedIndex]
             player?.playbackParameters = PlaybackParameters(spd)
-            btnSpeed.text = "Speed: ${spd}x"
+            Toast.makeText(this, "⚡ ${spd}x", Toast.LENGTH_SHORT).show()
         }
 
         btnRotate.setOnClickListener {
@@ -358,11 +365,11 @@ class PlayerActivity : AppCompatActivity() {
             if (currentlyLandscape) {
                 manualLandscape = false
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                Toast.makeText(this, "Portrait", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "↻", Toast.LENGTH_SHORT).show()
             } else {
                 manualLandscape = true
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                Toast.makeText(this, "Landscape", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "↻", Toast.LENGTH_SHORT).show()
             }
             applyImmersiveMode()
         }
@@ -373,18 +380,18 @@ class PlayerActivity : AppCompatActivity() {
 
         btnSubSyncMinus.setOnClickListener {
             subSyncOffsetMs -= 500L
-            Toast.makeText(this, "Sub Sync: ${subSyncOffsetMs}ms", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "➖ ${subSyncOffsetMs}ms", Toast.LENGTH_SHORT).show()
         }
 
         btnSubSyncPlus.setOnClickListener {
             subSyncOffsetMs += 500L
-            Toast.makeText(this, "Sub Sync: ${subSyncOffsetMs}ms", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "➕ ${subSyncOffsetMs}ms", Toast.LENGTH_SHORT).show()
         }
 
         btnSubSpeed.setOnClickListener {
             subSpeedIndex = (subSpeedIndex + 1) % subSpeeds.size
             val subSpd = subSpeeds[subSpeedIndex]
-            btnSubSpeed.text = "SubSpd: ${subSpd}x"
+            Toast.makeText(this, "⏱ ${subSpd}x", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -422,9 +429,9 @@ class PlayerActivity : AppCompatActivity() {
             }
             subtitles = parseSrt(lines)
             subSyncOffsetMs = 0L
-            Toast.makeText(this, "Loaded ${subtitles.size} subs", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "💬 ${subtitles.size}", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
-            Toast.makeText(this, "Failed to load SRT", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "💬 ✕", Toast.LENGTH_SHORT).show()
         }
     }
 
