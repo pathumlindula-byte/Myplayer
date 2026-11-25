@@ -244,3 +244,4 @@ class PlayerActivity : AppCompatActivity() {
         player = null
     }
 }
+
