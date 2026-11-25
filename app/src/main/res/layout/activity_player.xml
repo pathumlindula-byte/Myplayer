@@ -22,7 +22,7 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="24dp"
         android:layout_marginEnd="24dp"
-        android:layout_marginBottom="16dp"
+        android:layout_marginBottom="12dp"
         android:background="#88000000"
         android:gravity="center"
         android:padding="6dp"
@@ -37,90 +37,101 @@
         android:id="@+id/controlsPanel"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:background="#AA000000"
+        android:background="#CC000000"
         android:orientation="vertical"
         android:padding="4dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
-        <LinearLayout
-            android:id="@+id/controlsRow1"
+        <HorizontalScrollView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:scrollbars="none">
 
-            <Button
-                android:id="@+id/btnOpenVideo"
-                android:layout_width="0dp"
+            <LinearLayout
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Video"
-                android:textSize="12sp" />
+                android:orientation="horizontal">
 
-            <Button
-                android:id="@+id/btnAspect"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Aspect: Fit"
-                android:textSize="12sp" />
+                <Button
+                    android:id="@+id/btnOpenVideo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Video"
+                    android:textSize="12sp" />
 
-            <Button
-                android:id="@+id/btnSpeed"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Speed: 1.0x"
-                android:textSize="12sp" />
+                <Button
+                    android:id="@+id/btnRewind10"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="-10s"
+                    android:textSize="12sp" />
 
-            <Button
-                android:id="@+id/btnRotate"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Rotate"
-                android:textSize="12sp" />
-        </LinearLayout>
+                <Button
+                    android:id="@+id/btnForward10"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="+10s"
+                    android:textSize="12sp" />
 
-        <LinearLayout
-            android:id="@+id/controlsRow2"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
+                <Button
+                    android:id="@+id/btnZoom"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Zoom: 1.0x"
+                    android:textSize="12sp" />
 
-            <Button
-                android:id="@+id/btnAddSub"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Sub"
-                android:textSize="12sp" />
+                <Button
+                    android:id="@+id/btnAspect"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Aspect: Fit"
+                    android:textSize="12sp" />
 
-            <Button
-                android:id="@+id/btnSubSyncMinus"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="-0.5s"
-                android:textSize="12sp" />
+                <Button
+                    android:id="@+id/btnSpeed"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Speed: 1.0x"
+                    android:textSize="12sp" />
 
-            <Button
-                android:id="@+id/btnSubSyncPlus"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="+0.5s"
-                android:textSize="12sp" />
+                <Button
+                    android:id="@+id/btnRotate"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Rotate"
+                    android:textSize="12sp" />
 
-            <Button
-                android:id="@+id/btnSubSpeed"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="SubSpd: 1.0x"
-                android:textSize="12sp" />
-        </LinearLayout>
+                <Button
+                    android:id="@+id/btnAddSub"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Sub"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/btnSubSyncMinus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="-0.5s"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/btnSubSyncPlus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="+0.5s"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/btnSubSpeed"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SubSpd: 1.0x"
+                    android:textSize="12sp" />
+            </LinearLayout>
+        </HorizontalScrollView>
 
     </LinearLayout>
 
