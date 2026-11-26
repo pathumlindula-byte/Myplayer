@@ -42,12 +42,16 @@
             android:id="@+id/btnRefreshMedia"
             android:layout_width="wrap_content"
             android:layout_height="38dp"
-            android:background="@drawable/bg_green_3d_glass"
+            android:background="@drawable/bg_zeno_green_pill"
+            android:clickable="true"
+            android:elevation="6dp"
+            android:focusable="true"
             android:gravity="center"
-            android:paddingHorizontal="16dp"
+            android:minWidth="84dp"
+            android:paddingHorizontal="18dp"
             android:text="SCAN"
             android:textColor="#FFFFFF"
-            android:textSize="12sp"
+            android:textSize="13sp"
             android:textStyle="bold" />
 
     </LinearLayout>
