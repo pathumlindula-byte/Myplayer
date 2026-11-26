@@ -38,6 +38,7 @@ class PlayerActivity : AppCompatActivity() {
     )
 
     private lateinit var playerView: PlayerView
+    private lateinit var gestureOverlay: View
     private lateinit var controlsOverlay: View
     private lateinit var emptyVideoPrompt: View
     private lateinit var btnOpenVideo: ImageButton
@@ -174,6 +175,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun bindViews() {
         playerView = findViewById(R.id.playerView)
+        gestureOverlay = findViewById(R.id.gestureOverlay)
         controlsOverlay = findViewById(R.id.controlsOverlay)
         emptyVideoPrompt = findViewById(R.id.emptyVideoPrompt)
         btnOpenVideo = findViewById(R.id.btnOpenVideo)
@@ -333,15 +335,15 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
 
-        playerView.setOnClickListener {
+        gestureOverlay.setOnClickListener {
             if (!isLocked) {
                 toggleControlsOverlay()
             }
         }
 
-        controlsOverlay.setOnClickListener {
+        playerView.setOnClickListener {
             if (!isLocked) {
-                hideControlsOverlay()
+                toggleControlsOverlay()
             }
         }
 
