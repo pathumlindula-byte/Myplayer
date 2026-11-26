@@ -2,6 +2,7 @@ package com.example.myvideoplayer
 
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -19,7 +20,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -45,25 +45,30 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var tvCurrentTime: TextView
     private lateinit var tvTotalTime: TextView
     private lateinit var tvSubtitleOverlay: TextView
-    private lateinit var tvSubtitleStatus: TextView
     private lateinit var seekBar: SeekBar
     private lateinit var btnPlayPause: ImageButton
     private lateinit var btnRewind: ImageButton
     private lateinit var btnForward: ImageButton
+    private lateinit var btnQuickSkip: ImageButton
     private lateinit var btnBack: ImageButton
+    private lateinit var btnAudioTrack: ImageButton
     private lateinit var btnSpeed: TextView
     private lateinit var btnSubtitle: TextView
+    private lateinit var btnDecoderBadge: TextView
     private lateinit var btnRotate: ImageButton
     private lateinit var btnLock: ImageButton
     private lateinit var btnUnlock: ImageButton
     private lateinit var btnAspectRatio: TextView
-    private lateinit var btnZoom: TextView
+    private lateinit var btnZoom: ImageButton
+    private lateinit var btnRepeat: ImageButton
+    private lateinit var btnFullScale: ImageButton
 
     private var player: ExoPlayer? = null
     private val uiHandler = Handler(Looper.getMainLooper())
     private var isSeeking = false
     private var isLocked = false
     private var hasVideoLoaded = false
+    private var isMuted = false
     private var lastSubtitleText: String? = null
 
     private val speeds = floatArrayOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
@@ -71,13 +76,20 @@ class PlayerActivity : AppCompatActivity() {
 
     private val aspectModes = arrayOf(
         AspectRatioFrameLayout.RESIZE_MODE_FIT to "FIT",
-        AspectRatioFrameLayout.RESIZE_MODE_FILL to "STRETCH",
-        AspectRatioFrameLayout.RESIZE_MODE_ZOOM to "CROP"
+        AspectRatioFrameLayout.RESIZE_MODE_FILL to "STR",
+        AspectRatioFrameLayout.RESIZE_MODE_ZOOM to "CRP"
     )
     private var aspectIndex = 0
 
     private val zoomScales = floatArrayOf(1.0f, 1.15f, 1.35f)
     private var zoomIndex = 0
+
+    private val repeatModes = arrayOf(
+        Player.REPEAT_MODE_OFF to "Repeat OFF",
+        Player.REPEAT_MODE_ONE to "Repeat 1",
+        Player.REPEAT_MODE_ALL to "Repeat ALL"
+    )
+    private var repeatIndex = 0
 
     private val subtitles = mutableListOf<SubtitleCue>()
 
@@ -108,20 +120,19 @@ class PlayerActivity : AppCompatActivity() {
     private val progressRunnable = object : Runnable {
         override fun run() {
             val currentPlayer = player
-            if (currentPlayer != null) {
+            if (currentPlayer != null && currentPlayer.isPlaying) {
                 val duration = currentPlayer.duration.coerceAtLeast(0L)
                 val position = currentPlayer.currentPosition.coerceAtLeast(0L)
 
-                if (!isSeeking && duration > 0L) {
+                if (!isSeeking && duration > 0L && controlsOverlay.visibility == View.VISIBLE) {
                     val progress = ((position * 1000L) / duration).toInt().coerceIn(0, 1000)
                     seekBar.progress = progress
+                    tvCurrentTime.text = formatDuration(position)
+                    tvTotalTime.text = formatDuration(duration)
                 }
-
-                tvCurrentTime.text = formatDuration(position)
-                tvTotalTime.text = formatDuration(duration)
                 updateSubtitleAt(position)
+                uiHandler.postDelayed(this, 650L)
             }
-            uiHandler.postDelayed(this, 400L)
         }
     }
 
@@ -170,32 +181,30 @@ class PlayerActivity : AppCompatActivity() {
         tvCurrentTime = findViewById(R.id.tvCurrentTime)
         tvTotalTime = findViewById(R.id.tvTotalTime)
         tvSubtitleOverlay = findViewById(R.id.tvSubtitleOverlay)
-        tvSubtitleStatus = findViewById(R.id.tvSubtitleStatus)
         seekBar = findViewById(R.id.seekBar)
         btnPlayPause = findViewById(R.id.btnPlayPause)
         btnRewind = findViewById(R.id.btnRewind)
         btnForward = findViewById(R.id.btnForward)
+        btnQuickSkip = findViewById(R.id.btnQuickSkip)
         btnBack = findViewById(R.id.btnBack)
+        btnAudioTrack = findViewById(R.id.btnAudioTrack)
         btnSpeed = findViewById(R.id.btnSpeed)
         btnSubtitle = findViewById(R.id.btnSubtitle)
+        btnDecoderBadge = findViewById(R.id.btnDecoderBadge)
         btnRotate = findViewById(R.id.btnRotate)
         btnLock = findViewById(R.id.btnLock)
         btnUnlock = findViewById(R.id.btnUnlock)
         btnAspectRatio = findViewById(R.id.btnAspectRatio)
         btnZoom = findViewById(R.id.btnZoom)
+        btnRepeat = findViewById(R.id.btnRepeat)
+        btnFullScale = findViewById(R.id.btnFullScale)
     }
 
     private fun setupPlayer() {
         val renderersFactory = DefaultRenderersFactory(this)
             .setEnableDecoderFallback(true)
 
-        val universalLoadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(1500, 6000, 1000, 2000)
-            .setPrioritizeTimeOverSizeThresholds(true)
-            .build()
-
         player = ExoPlayer.Builder(this, renderersFactory)
-            .setLoadControl(universalLoadControl)
             .build()
             .also { exo ->
                 playerView.player = exo
@@ -219,8 +228,11 @@ class PlayerActivity : AppCompatActivity() {
                             }
                             .start()
                         if (isPlaying) {
+                            uiHandler.removeCallbacks(progressRunnable)
+                            uiHandler.post(progressRunnable)
                             resetAutoHideTimer()
                         } else {
+                            uiHandler.removeCallbacks(progressRunnable)
                             cancelAutoHideTimer()
                         }
                     }
@@ -307,6 +319,13 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    private fun skipForward10s() {
+        player?.let { exo ->
+            val maxPos = exo.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
+            exo.seekTo((exo.currentPosition + 10_000L).coerceAtMost(maxPos))
+        }
+    }
+
     private fun setupListeners() {
         btnOpenVideo.setOnClickListener {
             animateGlassClick(it) {
@@ -328,7 +347,29 @@ class PlayerActivity : AppCompatActivity() {
 
         btnBack.setOnClickListener {
             animateGlassClick(it) {
-                checkPermissionsAndPickVideo()
+                finish()
+            }
+        }
+
+        btnAudioTrack.setOnClickListener {
+            animateGlassClick(it) {
+                isMuted = !isMuted
+                player?.volume = if (isMuted) 0f else 1f
+                val audioManager = getSystemService(AUDIO_SERVICE) as? AudioManager
+                if (!isMuted) {
+                    audioManager?.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_SAME, 0)
+                }
+                Toast.makeText(
+                    this,
+                    if (isMuted) "Audio Muted" else "Audio Unmuted",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+
+        btnDecoderBadge.setOnClickListener {
+            animateGlassClick(it) {
+                Toast.makeText(this, "Hardware / Fallback Decoder Active", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -350,10 +391,13 @@ class PlayerActivity : AppCompatActivity() {
 
         btnForward.setOnClickListener {
             animateGlassClick(it) {
-                player?.let { exo ->
-                    val maxPos = exo.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
-                    exo.seekTo((exo.currentPosition + 10_000L).coerceAtMost(maxPos))
-                }
+                skipForward10s()
+            }
+        }
+
+        btnQuickSkip.setOnClickListener {
+            animateGlassClick(it) {
+                skipForward10s()
             }
         }
 
@@ -362,7 +406,7 @@ class PlayerActivity : AppCompatActivity() {
                 speedIndex = (speedIndex + 1) % speeds.size
                 val newSpeed = speeds[speedIndex]
                 player?.setPlaybackSpeed(newSpeed)
-                btnSpeed.text = String.format(Locale.US, "%.2gx", newSpeed)
+                btnSpeed.text = if (newSpeed == 1.0f) "1X" else String.format(Locale.US, "%.2gX", newSpeed)
             }
         }
 
@@ -423,7 +467,26 @@ class PlayerActivity : AppCompatActivity() {
                         .setDuration(170L)
                         .start()
                 }
-                btnZoom.text = "ZOOM ${(scale * 100).toInt()}%"
+                Toast.makeText(this, "Zoom ${(scale * 100).toInt()}%", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        btnFullScale.setOnClickListener {
+            animateGlassClick(it) {
+                aspectIndex = (aspectIndex + 1) % aspectModes.size
+                val (mode, label) = aspectModes[aspectIndex]
+                playerView.resizeMode = mode
+                btnAspectRatio.text = label
+                Toast.makeText(this, "Mode: $label", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        btnRepeat.setOnClickListener {
+            animateGlassClick(it) {
+                repeatIndex = (repeatIndex + 1) % repeatModes.size
+                val (mode, label) = repeatModes[repeatIndex]
+                player?.repeatMode = mode
+                Toast.makeText(this, label, Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -522,10 +585,8 @@ class PlayerActivity : AppCompatActivity() {
                     }
                 }
             }
-            tvSubtitleStatus.text = "SRT ON (${subtitles.size})"
-            Toast.makeText(this, "Subtitles loaded", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Subtitles loaded (${subtitles.size})", Toast.LENGTH_SHORT).show()
         } catch (_: Exception) {
-            tvSubtitleStatus.text = "SRT Err"
             Toast.makeText(this, "Invalid SRT file", Toast.LENGTH_SHORT).show()
         }
     }
@@ -585,7 +646,10 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        uiHandler.post(progressRunnable)
+        if (player?.isPlaying == true) {
+            uiHandler.removeCallbacks(progressRunnable)
+            uiHandler.post(progressRunnable)
+        }
     }
 
     override fun onStop() {
