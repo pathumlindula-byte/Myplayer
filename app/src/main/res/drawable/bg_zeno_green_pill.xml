@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Outer subtle glow / border -->
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="20dp" />
+            <solid android:color="#1B5E20" />
+            <stroke
+                android:width="1.5dp"
+                android:color="#69F0AE" />
+        </shape>
+    </item>
+
+    <!-- Main 3D emerald gradient -->
+    <item
+        android:bottom="2dp"
+        android:left="1.5dp"
+        android:right="1.5dp"
+        android:top="1.5dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="18dp" />
+            <gradient
+                android:angle="270"
+                android:centerColor="#00A859"
+                android:endColor="#005A2B"
+                android:startColor="#2EE58A" />
+        </shape>
+    </item>
+
+    <!-- Top glass highlight -->
+    <item
+        android:bottom="14dp"
+        android:left="3dp"
+        android:right="3dp"
+        android:top="2dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="14dp" />
+            <gradient
+                android:angle="270"
+                android:endColor="#00FFFFFF"
+                android:startColor="#55FFFFFF" />
+        </shape>
+    </item>
+</layer-list>
