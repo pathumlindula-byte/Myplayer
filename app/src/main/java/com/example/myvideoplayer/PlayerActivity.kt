@@ -17,6 +17,9 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -53,16 +56,23 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var btnQuickSkip: ImageButton
     private lateinit var btnBack: ImageButton
     private lateinit var btnAudioTrack: ImageButton
+    private lateinit var btnMoreOptions: ImageButton
+    private lateinit var btnDecoder: TextView
+    private lateinit var btnDecoderBadge: TextView
+    private lateinit var btnEqualizer: ImageButton
     private lateinit var btnSpeed: TextView
     private lateinit var btnSubtitle: ImageButton
-    private lateinit var btnDecoderBadge: TextView
     private lateinit var btnRotate: ImageButton
+    private lateinit var btnNextTop: ImageButton
+    private lateinit var btnPrev: ImageButton
+    private lateinit var btnNext: ImageButton
     private lateinit var btnLock: ImageButton
     private lateinit var btnUnlock: ImageButton
     private lateinit var btnAspectRatio: ImageButton
     private lateinit var btnZoom: ImageButton
     private lateinit var btnRepeat: ImageButton
     private lateinit var btnFullScale: ImageButton
+    private lateinit var btnFullscreenResize: ImageButton
 
     private var player: ExoPlayer? = null
     private val uiHandler = Handler(Looper.getMainLooper())
@@ -70,6 +80,7 @@ class PlayerActivity : AppCompatActivity() {
     private var isLocked = false
     private var hasVideoLoaded = false
     private var isMuted = false
+    private var isHwDecoder = true
     private var lastSubtitleText: String? = null
 
     private val speeds = floatArrayOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
@@ -143,6 +154,7 @@ class PlayerActivity : AppCompatActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_player)
 
+        enterFullscreenImmersiveMode()
         bindViews()
         setupPlayer()
         setupListeners()
@@ -153,6 +165,25 @@ class PlayerActivity : AppCompatActivity() {
         } else {
             emptyVideoPrompt.visibility = View.VISIBLE
             controlsOverlay.visibility = View.GONE
+        }
+    }
+
+    private fun enterFullscreenImmersiveMode() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+        controller.hide(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
+        controller.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            enterFullscreenImmersiveMode()
         }
     }
 
@@ -190,16 +221,23 @@ class PlayerActivity : AppCompatActivity() {
         btnQuickSkip = findViewById(R.id.btnQuickSkip)
         btnBack = findViewById(R.id.btnBack)
         btnAudioTrack = findViewById(R.id.btnAudioTrack)
+        btnMoreOptions = findViewById(R.id.btnMoreOptions)
+        btnDecoder = findViewById(R.id.btnDecoder)
+        btnDecoderBadge = findViewById(R.id.btnDecoderBadge)
+        btnEqualizer = findViewById(R.id.btnEqualizer)
         btnSpeed = findViewById(R.id.btnSpeed)
         btnSubtitle = findViewById(R.id.btnSubtitle)
-        btnDecoderBadge = findViewById(R.id.btnDecoderBadge)
         btnRotate = findViewById(R.id.btnRotate)
+        btnNextTop = findViewById(R.id.btnNextTop)
+        btnPrev = findViewById(R.id.btnPrev)
+        btnNext = findViewById(R.id.btnNext)
         btnLock = findViewById(R.id.btnLock)
         btnUnlock = findViewById(R.id.btnUnlock)
         btnAspectRatio = findViewById(R.id.btnAspectRatio)
         btnZoom = findViewById(R.id.btnZoom)
         btnRepeat = findViewById(R.id.btnRepeat)
         btnFullScale = findViewById(R.id.btnFullScale)
+        btnFullscreenResize = findViewById(R.id.btnFullscreenResize)
     }
 
     private fun setupPlayer() {
@@ -299,6 +337,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun hideControlsOverlay() {
         cancelAutoHideTimer()
+        enterFullscreenImmersiveMode()
         controlsOverlay.animate().cancel()
         controlsOverlay.animate()
             .alpha(0f)
@@ -326,6 +365,13 @@ class PlayerActivity : AppCompatActivity() {
             val maxPos = exo.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
             exo.seekTo((exo.currentPosition + 10_000L).coerceAtMost(maxPos))
         }
+    }
+
+    private fun cycleAspectMode() {
+        aspectIndex = (aspectIndex + 1) % aspectModes.size
+        val (mode, label) = aspectModes[aspectIndex]
+        playerView.resizeMode = mode
+        Toast.makeText(this, "Screen Mode: $label", Toast.LENGTH_SHORT).show()
     }
 
     private fun setupListeners() {
@@ -369,9 +415,44 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
 
+        btnMoreOptions.setOnClickListener {
+            animateGlassClick(it) {
+                checkPermissionsAndPickVideo()
+            }
+        }
+
+        btnDecoder.setOnClickListener {
+            animateGlassClick(it) {
+                isHwDecoder = !isHwDecoder
+                btnDecoder.text = if (isHwDecoder) "HW" else "SW"
+                Toast.makeText(
+                    this,
+                    if (isHwDecoder) "Hardware Decoder (HW)" else "Software Fallback (SW)",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+
         btnDecoderBadge.setOnClickListener {
             animateGlassClick(it) {
-                Toast.makeText(this, "Hardware / Fallback Decoder Active", Toast.LENGTH_SHORT).show()
+                isHwDecoder = !isHwDecoder
+                btnDecoder.text = if (isHwDecoder) "HW" else "SW"
+                Toast.makeText(
+                    this,
+                    if (isHwDecoder) "Hardware Decoder (HW)" else "Software Fallback (SW)",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+
+        btnEqualizer.setOnClickListener {
+            animateGlassClick(it) {
+                val audioManager = getSystemService(AUDIO_SERVICE) as? AudioManager
+                audioManager?.adjustStreamVolume(
+                    AudioManager.STREAM_MUSIC,
+                    AudioManager.ADJUST_SAME,
+                    AudioManager.FLAG_SHOW_UI
+                )
             }
         }
 
@@ -403,6 +484,25 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
 
+        btnPrev.setOnClickListener {
+            animateGlassClick(it) {
+                player?.seekTo(0L)
+                Toast.makeText(this, "Restarted Video", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        btnNext.setOnClickListener {
+            animateGlassClick(it) {
+                checkPermissionsAndPickVideo()
+            }
+        }
+
+        btnNextTop.setOnClickListener {
+            animateGlassClick(it) {
+                checkPermissionsAndPickVideo()
+            }
+        }
+
         btnSpeed.setOnClickListener {
             animateGlassClick(it) {
                 speedIndex = (speedIndex + 1) % speeds.size
@@ -426,6 +526,7 @@ class PlayerActivity : AppCompatActivity() {
             animateGlassClick(it) {
                 isLocked = true
                 cancelAutoHideTimer()
+                enterFullscreenImmersiveMode()
                 controlsOverlay.visibility = View.GONE
                 btnUnlock.alpha = 0f
                 btnUnlock.scaleX = 0.7f
@@ -451,10 +552,7 @@ class PlayerActivity : AppCompatActivity() {
 
         btnAspectRatio.setOnClickListener {
             animateGlassClick(it) {
-                aspectIndex = (aspectIndex + 1) % aspectModes.size
-                val (mode, label) = aspectModes[aspectIndex]
-                playerView.resizeMode = mode
-                Toast.makeText(this, "Aspect: $label", Toast.LENGTH_SHORT).show()
+                cycleAspectMode()
             }
         }
 
@@ -475,10 +573,13 @@ class PlayerActivity : AppCompatActivity() {
 
         btnFullScale.setOnClickListener {
             animateGlassClick(it) {
-                aspectIndex = (aspectIndex + 1) % aspectModes.size
-                val (mode, label) = aspectModes[aspectIndex]
-                playerView.resizeMode = mode
-                Toast.makeText(this, "Mode: $label", Toast.LENGTH_SHORT).show()
+                cycleAspectMode()
+            }
+        }
+
+        btnFullscreenResize.setOnClickListener {
+            animateGlassClick(it) {
+                cycleAspectMode()
             }
         }
 
@@ -534,6 +635,7 @@ class PlayerActivity : AppCompatActivity() {
             hasVideoLoaded = true
             emptyVideoPrompt.visibility = View.GONE
             controlsOverlay.visibility = View.VISIBLE
+            enterFullscreenImmersiveMode()
             resetAutoHideTimer()
             tvVideoTitle.text = uri.lastPathSegment?.substringAfterLast('/') ?: "Zeno Player"
             player?.apply {
