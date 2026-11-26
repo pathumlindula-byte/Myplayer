@@ -170,6 +170,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun findViewByPossibleNames(root: View, names: List<String>): TextView? {
+        for (name in names) {
+            val id = resources.getIdentifier(name, "id", packageName)
+            if (id != 0) {
+                val found = root.findViewById<View?>(id)
+                if (found is TextView) return found
+            }
+        }
+        return null
+    }
+
     private fun collectTextViews(view: View, list: MutableList<TextView>) {
         if (view is TextView) {
             list.add(view)
@@ -181,13 +192,29 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun bindRowTexts(itemView: View, titleText: String, subtitleText: String) {
+        val titleView = findViewByPossibleNames(
+            itemView,
+            listOf("tvFolderName", "tvFolderTitle", "tvTitle", "folderName", "title")
+        )
+        val subtitleView = findViewByPossibleNames(
+            itemView,
+            listOf("tvVideoCount", "tvFolderCount", "tvSubtitle", "videoCount", "subtitle")
+        )
+
+        if (titleView != null || subtitleView != null) {
+            titleView?.text = titleText
+            subtitleView?.text = subtitleText
+            return
+        }
+
         val textViews = mutableListOf<TextView>()
         collectTextViews(itemView, textViews)
-        if (textViews.isNotEmpty()) {
-            textViews[0].text = titleText
-        }
         if (textViews.size >= 2) {
-            textViews[1].text = subtitleText
+            val sortedBySize = textViews.sortedByDescending { it.textSize }
+            sortedBySize[0].text = titleText
+            sortedBySize[1].text = subtitleText
+        } else if (textViews.size == 1) {
+            textViews[0].text = titleText
         }
     }
 
