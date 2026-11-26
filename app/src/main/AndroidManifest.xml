@@ -7,14 +7,14 @@
     <application
         android:allowBackup="true"
         android:hardwareAccelerated="true"
-        android:icon="@android:drawable/ic_media_play"
+        android:icon="@drawable/bg_zeno_wallpaper"
         android:label="Zeno Player"
-        android:roundIcon="@android:drawable/ic_media_play"
+        android:roundIcon="@drawable/bg_zeno_wallpaper"
         android:supportsRtl="true"
         android:theme="@style/Theme.ZenoPlayer">
 
         <activity
-            android:name=".PlayerActivity"
+            android:name=".MainActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:exported="true"
             android:theme="@style/Theme.ZenoPlayer">
@@ -22,9 +22,16 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".PlayerActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:exported="true"
+            android:theme="@style/Theme.ZenoPlayer">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
-                <category android:name="android:intent.category.DEFAULT" />
+                <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="content" />
                 <data android:scheme="file" />
