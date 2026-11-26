@@ -40,7 +40,7 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var playerView: PlayerView
     private lateinit var controlsOverlay: View
     private lateinit var emptyVideoPrompt: View
-    private lateinit var btnOpenVideo: TextView
+    private lateinit var btnOpenVideo: ImageButton
     private lateinit var tvVideoTitle: TextView
     private lateinit var tvCurrentTime: TextView
     private lateinit var tvTotalTime: TextView
@@ -53,12 +53,12 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var btnBack: ImageButton
     private lateinit var btnAudioTrack: ImageButton
     private lateinit var btnSpeed: TextView
-    private lateinit var btnSubtitle: TextView
+    private lateinit var btnSubtitle: ImageButton
     private lateinit var btnDecoderBadge: TextView
     private lateinit var btnRotate: ImageButton
     private lateinit var btnLock: ImageButton
     private lateinit var btnUnlock: ImageButton
-    private lateinit var btnAspectRatio: TextView
+    private lateinit var btnAspectRatio: ImageButton
     private lateinit var btnZoom: ImageButton
     private lateinit var btnRepeat: ImageButton
     private lateinit var btnFullScale: ImageButton
@@ -452,7 +452,7 @@ class PlayerActivity : AppCompatActivity() {
                 aspectIndex = (aspectIndex + 1) % aspectModes.size
                 val (mode, label) = aspectModes[aspectIndex]
                 playerView.resizeMode = mode
-                btnAspectRatio.text = label
+                Toast.makeText(this, "Aspect: $label", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -476,7 +476,6 @@ class PlayerActivity : AppCompatActivity() {
                 aspectIndex = (aspectIndex + 1) % aspectModes.size
                 val (mode, label) = aspectModes[aspectIndex]
                 playerView.resizeMode = mode
-                btnAspectRatio.text = label
                 Toast.makeText(this, "Mode: $label", Toast.LENGTH_SHORT).show()
             }
         }
