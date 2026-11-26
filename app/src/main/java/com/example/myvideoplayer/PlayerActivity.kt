@@ -3,6 +3,7 @@ package com.example.myvideoplayer
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -16,8 +17,10 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -36,6 +39,8 @@ class PlayerActivity : AppCompatActivity() {
 
     private lateinit var playerView: PlayerView
     private lateinit var controlsOverlay: View
+    private lateinit var emptyVideoPrompt: View
+    private lateinit var btnOpenVideo: TextView
     private lateinit var tvVideoTitle: TextView
     private lateinit var tvCurrentTime: TextView
     private lateinit var tvTotalTime: TextView
@@ -58,6 +63,7 @@ class PlayerActivity : AppCompatActivity() {
     private val uiHandler = Handler(Looper.getMainLooper())
     private var isSeeking = false
     private var isLocked = false
+    private var hasVideoLoaded = false
     private var lastSubtitleText: String? = null
 
     private val speeds = floatArrayOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
@@ -75,6 +81,12 @@ class PlayerActivity : AppCompatActivity() {
 
     private val subtitles = mutableListOf<SubtitleCue>()
 
+    private val autoHideRunnable = Runnable {
+        if (!isLocked && hasVideoLoaded && controlsOverlay.visibility == View.VISIBLE && player?.isPlaying == true) {
+            hideControlsOverlay()
+        }
+    }
+
     private val pickVideoLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -85,6 +97,12 @@ class PlayerActivity : AppCompatActivity() {
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let { loadSrtSubtitles(it) }
+    }
+
+    private val requestMediaPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        launchVideoPickerSafe()
     }
 
     private val progressRunnable = object : Runnable {
@@ -103,7 +121,7 @@ class PlayerActivity : AppCompatActivity() {
                 tvTotalTime.text = formatDuration(duration)
                 updateSubtitleAt(position)
             }
-            uiHandler.postDelayed(this, 350L)
+            uiHandler.postDelayed(this, 400L)
         }
     }
 
@@ -121,13 +139,33 @@ class PlayerActivity : AppCompatActivity() {
         if (incomingUri != null && intent?.action == Intent.ACTION_VIEW) {
             playVideo(incomingUri)
         } else {
+            emptyVideoPrompt.visibility = View.VISIBLE
+            controlsOverlay.visibility = View.GONE
+        }
+    }
+
+    private fun checkPermissionsAndPickVideo() {
+        val neededPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            arrayOf(android.Manifest.permission.READ_MEDIA_VIDEO)
+        } else {
+            arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+        requestMediaPermissionLauncher.launch(neededPermissions)
+    }
+
+    private fun launchVideoPickerSafe() {
+        try {
             pickVideoLauncher.launch("video/*")
+        } catch (_: Exception) {
+            Toast.makeText(this, "Video picker open කරන්න බැරි වුණා", Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun bindViews() {
         playerView = findViewById(R.id.playerView)
         controlsOverlay = findViewById(R.id.controlsOverlay)
+        emptyVideoPrompt = findViewById(R.id.emptyVideoPrompt)
+        btnOpenVideo = findViewById(R.id.btnOpenVideo)
         tvVideoTitle = findViewById(R.id.tvVideoTitle)
         tvCurrentTime = findViewById(R.id.tvCurrentTime)
         tvTotalTime = findViewById(R.id.tvTotalTime)
@@ -148,13 +186,16 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setupPlayer() {
-        val lowRamLoadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(1500, 5000, 1000, 2000)
+        val renderersFactory = DefaultRenderersFactory(this)
+            .setEnableDecoderFallback(true)
+
+        val universalLoadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(1500, 6000, 1000, 2000)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
-        player = ExoPlayer.Builder(this)
-            .setLoadControl(lowRamLoadControl)
+        player = ExoPlayer.Builder(this, renderersFactory)
+            .setLoadControl(universalLoadControl)
             .build()
             .also { exo ->
                 playerView.player = exo
@@ -177,12 +218,35 @@ class PlayerActivity : AppCompatActivity() {
                                     .start()
                             }
                             .start()
+                        if (isPlaying) {
+                            resetAutoHideTimer()
+                        } else {
+                            cancelAutoHideTimer()
+                        }
+                    }
+
+                    override fun onPlayerError(error: PlaybackException) {
+                        Toast.makeText(
+                            this@PlayerActivity,
+                            "මේ video format එක play කරන්න බැහැ",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 })
             }
     }
 
+    private fun resetAutoHideTimer() {
+        cancelAutoHideTimer()
+        uiHandler.postDelayed(autoHideRunnable, 4000L)
+    }
+
+    private fun cancelAutoHideTimer() {
+        uiHandler.removeCallbacks(autoHideRunnable)
+    }
+
     private fun animateGlassClick(view: View, action: () -> Unit) {
+        resetAutoHideTimer()
         view.animate().cancel()
         view.alpha = 1f
         view.animate()
@@ -203,40 +267,68 @@ class PlayerActivity : AppCompatActivity() {
             .start()
     }
 
+    private fun showControlsOverlay() {
+        if (!hasVideoLoaded) return
+        controlsOverlay.animate().cancel()
+        controlsOverlay.alpha = 0f
+        controlsOverlay.scaleX = 0.98f
+        controlsOverlay.scaleY = 0.98f
+        controlsOverlay.visibility = View.VISIBLE
+        controlsOverlay.animate()
+            .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(170L)
+            .start()
+        resetAutoHideTimer()
+    }
+
+    private fun hideControlsOverlay() {
+        cancelAutoHideTimer()
+        controlsOverlay.animate().cancel()
+        controlsOverlay.animate()
+            .alpha(0f)
+            .setDuration(150L)
+            .withEndAction {
+                controlsOverlay.visibility = View.GONE
+                controlsOverlay.alpha = 1f
+                controlsOverlay.scaleX = 1f
+                controlsOverlay.scaleY = 1f
+            }
+            .start()
+    }
+
     private fun toggleControlsOverlay() {
+        if (!hasVideoLoaded) return
         if (controlsOverlay.visibility == View.VISIBLE) {
-            controlsOverlay.animate()
-                .alpha(0f)
-                .setDuration(160L)
-                .withEndAction {
-                    controlsOverlay.visibility = View.GONE
-                    controlsOverlay.alpha = 1f
-                }
-                .start()
+            hideControlsOverlay()
         } else {
-            controlsOverlay.alpha = 0f
-            controlsOverlay.scaleX = 0.98f
-            controlsOverlay.scaleY = 0.98f
-            controlsOverlay.visibility = View.VISIBLE
-            controlsOverlay.animate()
-                .alpha(1f)
-                .scaleX(1f)
-                .scaleY(1f)
-                .setDuration(180L)
-                .start()
+            showControlsOverlay()
         }
     }
 
     private fun setupListeners() {
+        btnOpenVideo.setOnClickListener {
+            animateGlassClick(it) {
+                checkPermissionsAndPickVideo()
+            }
+        }
+
         playerView.setOnClickListener {
             if (!isLocked) {
                 toggleControlsOverlay()
             }
         }
 
+        controlsOverlay.setOnClickListener {
+            if (!isLocked) {
+                hideControlsOverlay()
+            }
+        }
+
         btnBack.setOnClickListener {
             animateGlassClick(it) {
-                pickVideoLauncher.launch("video/*")
+                checkPermissionsAndPickVideo()
             }
         }
 
@@ -287,6 +379,7 @@ class PlayerActivity : AppCompatActivity() {
         btnLock.setOnClickListener {
             animateGlassClick(it) {
                 isLocked = true
+                cancelAutoHideTimer()
                 controlsOverlay.visibility = View.GONE
                 btnUnlock.alpha = 0f
                 btnUnlock.scaleX = 0.7f
@@ -306,7 +399,7 @@ class PlayerActivity : AppCompatActivity() {
             animateGlassClick(it) {
                 isLocked = false
                 btnUnlock.visibility = View.GONE
-                toggleControlsOverlay()
+                showControlsOverlay()
             }
         }
 
@@ -327,7 +420,7 @@ class PlayerActivity : AppCompatActivity() {
                     surface.animate()
                         .scaleX(scale)
                         .scaleY(scale)
-                        .setDuration(180L)
+                        .setDuration(170L)
                         .start()
                 }
                 btnZoom.text = "ZOOM ${(scale * 100).toInt()}%"
@@ -336,13 +429,18 @@ class PlayerActivity : AppCompatActivity() {
 
         btnSubtitle.setOnClickListener {
             animateGlassClick(it) {
-                pickSubtitleLauncher.launch("*/*")
+                try {
+                    pickSubtitleLauncher.launch("*/*")
+                } catch (_: Exception) {
+                    Toast.makeText(this, "Subtitle picker open කරන්න බැරි වුණා", Toast.LENGTH_SHORT).show()
+                }
             }
         }
 
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
+                    resetAutoHideTimer()
                     val duration = player?.duration ?: 0L
                     if (duration > 0L) {
                         tvCurrentTime.text = formatDuration((duration * progress) / 1000L)
@@ -352,6 +450,7 @@ class PlayerActivity : AppCompatActivity() {
 
             override fun onStartTrackingTouch(seekBar: SeekBar?) {
                 isSeeking = true
+                cancelAutoHideTimer()
             }
 
             override fun onStopTrackingTouch(seekBar: SeekBar?) {
@@ -361,16 +460,25 @@ class PlayerActivity : AppCompatActivity() {
                     player?.seekTo((duration * targetProgress) / 1000L)
                 }
                 isSeeking = false
+                resetAutoHideTimer()
             }
         })
     }
 
     private fun playVideo(uri: Uri) {
-        tvVideoTitle.text = uri.lastPathSegment?.substringAfterLast('/') ?: "Zeno Player"
-        player?.apply {
-            setMediaItem(MediaItem.fromUri(uri))
-            prepare()
-            playWhenReady = true
+        try {
+            hasVideoLoaded = true
+            emptyVideoPrompt.visibility = View.GONE
+            controlsOverlay.visibility = View.VISIBLE
+            resetAutoHideTimer()
+            tvVideoTitle.text = uri.lastPathSegment?.substringAfterLast('/') ?: "Zeno Player"
+            player?.apply {
+                setMediaItem(MediaItem.fromUri(uri))
+                prepare()
+                playWhenReady = true
+            }
+        } catch (_: Exception) {
+            Toast.makeText(this, "Video එක load කරන්න බැරි වුණා", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -482,12 +590,14 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
+        cancelAutoHideTimer()
         uiHandler.removeCallbacks(progressRunnable)
         player?.pause()
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        cancelAutoHideTimer()
         uiHandler.removeCallbacks(progressRunnable)
         player?.release()
         player = null
