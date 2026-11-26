@@ -546,7 +546,7 @@ class MainActivity : AppCompatActivity() {
                     marginStart = dp(14)
                 }
                 setTextColor(Color.parseColor("#F2F2F2"))
-                textSize = 15sp
+                textSize = 15f
                 maxLines = 2
                 ellipsize = TextUtils.TruncateAt.END
             }
