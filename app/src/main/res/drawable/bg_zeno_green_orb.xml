@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Outer bright green glass border -->
+    <item>
+        <shape android:shape="oval">
+            <gradient
+                android:angle="270"
+                android:startColor="#8BFF6B"
+                android:centerColor="#22B136"
+                android:endColor="#0A3B12" />
+            <stroke
+                android:width="1.5dp"
+                android:color="#C8FF9E" />
+        </shape>
+    </item>
+
+    <!-- Main 3D green orb body -->
+    <item
+        android:top="2dp"
+        android:bottom="2dp"
+        android:left="2dp"
+        android:right="2dp">
+        <shape android:shape="oval">
+            <gradient
+                android:angle="270"
+                android:startColor="#48E54E"
+                android:centerColor="#137A23"
+                android:endColor="#06290C" />
+        </shape>
+    </item>
+
+    <!-- Top glossy glass reflection -->
+    <item
+        android:top="3dp"
+        android:left="9dp"
+        android:right="9dp"
+        android:bottom="24dp">
+        <shape android:shape="oval">
+            <gradient
+                android:angle="270"
+                android:startColor="#A6FFFFFF"
+                android:endColor="#00FFFFFF" />
+        </shape>
+    </item>
+
+</layer-list>
