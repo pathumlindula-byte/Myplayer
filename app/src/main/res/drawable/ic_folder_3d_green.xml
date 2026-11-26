@@ -1,52 +1,63 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <item>
+    <!-- Back tab & body -->
+    <item android:top="2dp">
         <shape android:shape="rectangle">
             <corners
-                android:bottomLeftRadius="8dp"
-                android:bottomRightRadius="8dp"
-                android:topLeftRadius="6dp"
-                android:topRightRadius="10dp" />
+                android:topLeftRadius="8dp"
+                android:topRightRadius="8dp"
+                android:bottomLeftRadius="9dp"
+                android:bottomRightRadius="9dp" />
             <gradient
                 android:angle="270"
-                android:endColor="#082E12"
-                android:startColor="#1F8A3B" />
+                android:startColor="#0E4A22"
+                android:endColor="#072611" />
             <stroke
                 android:width="1.2dp"
-                android:color="#888CFFAF" />
+                android:color="#5CE67A" />
         </shape>
     </item>
 
-    <item android:top="9dp">
+    <!-- Front glossy 3D glass body -->
+    <item
+        android:top="10dp"
+        android:left="1dp"
+        android:right="1dp"
+        android:bottom="1dp">
         <shape android:shape="rectangle">
             <corners
+                android:topLeftRadius="7dp"
+                android:topRightRadius="7dp"
                 android:bottomLeftRadius="8dp"
-                android:bottomRightRadius="8dp"
-                android:topLeftRadius="4dp"
-                android:topRightRadius="4dp" />
+                android:bottomRightRadius="8dp" />
             <gradient
                 android:angle="270"
-                android:centerColor="#158531"
-                android:endColor="#0A4519"
-                android:startColor="#35CC58" />
+                android:startColor="#34C759"
+                android:centerColor="#167A34"
+                android:endColor="#0A3B19" />
             <stroke
-                android:width="1.4dp"
-                android:color="#BBAAFFC2" />
+                android:width="1dp"
+                android:color="#99FFAF" />
         </shape>
     </item>
 
+    <!-- Top glass highlight sheen -->
     <item
-        android:bottom="28dp"
+        android:top="11dp"
         android:left="4dp"
         android:right="4dp"
-        android:top="10dp">
+        android:bottom="28dp">
         <shape android:shape="rectangle">
-            <corners android:radius="5dp" />
+            <corners
+                android:topLeftRadius="5dp"
+                android:topRightRadius="5dp"
+                android:bottomLeftRadius="12dp"
+                android:bottomRightRadius="12dp" />
             <gradient
                 android:angle="270"
-                android:endColor="#12FFFFFF"
-                android:startColor="#B8FFFFFF" />
+                android:startColor="#70FFFFFF"
+                android:endColor="#10FFFFFF" />
         </shape>
     </item>
 
