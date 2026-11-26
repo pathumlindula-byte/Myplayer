@@ -52,7 +52,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        setTheme(R.style.Theme.ZenoPlayer)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
 
@@ -169,17 +168,6 @@ class MainActivity : AppCompatActivity() {
         } else {
             showFoldersList()
         }
-    }
-
-    private fun findFirstTextView(view: View): TextView? {
-        if (view is TextView) return view
-        if (view is ViewGroup) {
-            for (i in 0 until view.childCount) {
-                val found = findFirstTextView(view.getChildAt(i))
-                if (found != null) return found
-            }
-        }
-        return null
     }
 
     private fun collectTextViews(view: View, list: MutableList<TextView>) {
