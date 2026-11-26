@@ -13,7 +13,7 @@ import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var btnScan: TextView
+    private lateinit var btnRefreshMedia: TextView
 
     private val requestMediaPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -37,10 +37,10 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(R.style.Theme_ZenoPlayer)
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        setContentView(R.layout.activity_home)
 
-        btnScan = findViewById(R.id.btnScan)
-        btnScan.setOnClickListener { view ->
+        btnRefreshMedia = findViewById(R.id.btnRefreshMedia)
+        btnRefreshMedia.setOnClickListener { view ->
             animateGlassPill(view) {
                 checkPermissionAndScan()
             }
