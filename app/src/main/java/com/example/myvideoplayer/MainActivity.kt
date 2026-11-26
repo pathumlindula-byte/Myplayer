@@ -3,15 +3,18 @@ package com.example.myvideoplayer
 import android.Manifest
 import android.content.ContentUris
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
+import android.util.Size
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.OvershootInterpolator
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -19,6 +22,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import java.io.File
+import java.util.Locale
+import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
 
@@ -26,7 +31,8 @@ class MainActivity : AppCompatActivity() {
         val uri: Uri,
         val title: String,
         val folderName: String,
-        val folderPath: String
+        val folderPath: String,
+        val durationMs: Long
     )
 
     private data class FolderItem(
@@ -44,6 +50,7 @@ class MainActivity : AppCompatActivity() {
     private val allVideos = mutableListOf<VideoItem>()
     private val folders = mutableListOf<FolderItem>()
     private var currentFolderPath: String? = null
+    private val thumbExecutor = Executors.newFixedThreadPool(3)
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -81,6 +88,11 @@ class MainActivity : AppCompatActivity() {
         checkPermissionAndLoad()
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        thumbExecutor.shutdownNow()
+    }
+
     private fun animateScanButton(view: View, action: () -> Unit) {
         view.animate().cancel()
         view.animate()
@@ -108,6 +120,48 @@ class MainActivity : AppCompatActivity() {
         requestPermissionLauncher.launch(permissions)
     }
 
+    private fun formatDuration(durationMs: Long): String {
+        if (durationMs <= 0L) return "00:00"
+        val totalSeconds = durationMs / 1000L
+        val hours = totalSeconds / 3600L
+        val minutes = (totalSeconds % 3600L) / 60L
+        val seconds = totalSeconds % 60L
+        return if (hours > 0L) {
+            String.format(Locale.getDefault(), "%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
+        }
+    }
+
+    private fun loadVideoThumbnail(uri: Uri, videoId: Long, imageView: ImageView) {
+        imageView.tag = uri
+        thumbExecutor.execute {
+            var bitmap: Bitmap? = null
+            try {
+                bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    contentResolver.loadThumbnail(uri, Size(240, 160), null)
+                } else {
+                    @Suppress("DEPRECATION")
+                    MediaStore.Video.Thumbnails.getThumbnail(
+                        contentResolver,
+                        videoId,
+                        MediaStore.Video.Thumbnails.MINI_KIND,
+                        null
+                    )
+                }
+            } catch (_: Exception) {
+                bitmap = null
+            }
+
+            val resultBitmap = bitmap
+            runOnUiThread {
+                if (imageView.tag == uri && resultBitmap != null) {
+                    imageView.setImageBitmap(resultBitmap)
+                }
+            }
+        }
+    }
+
     private fun loadMediaFolders() {
         allVideos.clear()
         folders.clear()
@@ -115,7 +169,8 @@ class MainActivity : AppCompatActivity() {
         val projection = arrayOf(
             MediaStore.Video.Media._ID,
             MediaStore.Video.Media.DISPLAY_NAME,
-            MediaStore.Video.Media.DATA
+            MediaStore.Video.Media.DATA,
+            MediaStore.Video.Media.DURATION
         )
 
         try {
@@ -129,6 +184,7 @@ class MainActivity : AppCompatActivity() {
                 val idCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
                 val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DISPLAY_NAME)
                 val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATA)
+                val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION)
 
                 val folderMap = LinkedHashMap<String, MutableList<VideoItem>>()
 
@@ -136,6 +192,7 @@ class MainActivity : AppCompatActivity() {
                     val id = cursor.getLong(idCol)
                     val title = cursor.getString(nameCol) ?: "Video"
                     val path = cursor.getString(dataCol) ?: ""
+                    val duration = cursor.getLong(durationCol)
                     val uri = ContentUris.withAppendedId(
                         MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
                         id
@@ -149,7 +206,7 @@ class MainActivity : AppCompatActivity() {
                         else -> parentFile.name.ifBlank { "Folder" }
                     }
 
-                    val item = VideoItem(uri, title, folderName, folderPath)
+                    val item = VideoItem(uri, title, folderName, folderPath, duration)
                     allVideos.add(item)
                     folderMap.getOrPut(folderPath) { mutableListOf() }.add(item)
                 }
@@ -170,12 +227,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun findViewByPossibleNames(root: View, names: List<String>): TextView? {
+    private fun findViewByPossibleNames(root: View, names: List<String>): View? {
         for (name in names) {
             val id = resources.getIdentifier(name, "id", packageName)
             if (id != 0) {
                 val found = root.findViewById<View?>(id)
-                if (found is TextView) return found
+                if (found != null) return found
             }
         }
         return null
@@ -191,15 +248,25 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun collectImageViews(view: View, list: MutableList<ImageView>) {
+        if (view is ImageView) {
+            list.add(view)
+        } else if (view is ViewGroup) {
+            for (i in 0 until view.childCount) {
+                collectImageViews(view.getChildAt(i), list)
+            }
+        }
+    }
+
     private fun bindRowTexts(itemView: View, titleText: String, subtitleText: String) {
         val titleView = findViewByPossibleNames(
             itemView,
-            listOf("tvFolderName", "tvFolderTitle", "tvTitle", "folderName", "title")
-        )
+            listOf("tvFolderName", "tvFolderTitle", "tvVideoTitle", "tvTitle", "folderName", "title")
+        ) as? TextView
         val subtitleView = findViewByPossibleNames(
             itemView,
-            listOf("tvVideoCount", "tvFolderCount", "tvSubtitle", "videoCount", "subtitle")
-        )
+            listOf("tvVideoCount", "tvFolderCount", "tvDuration", "tvSubtitle", "videoCount", "subtitle")
+        ) as? TextView
 
         if (titleView != null || subtitleView != null) {
             titleView?.text = titleText
@@ -276,7 +343,22 @@ class MainActivity : AppCompatActivity() {
 
             override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
                 val video = folderVideos[position]
-                bindRowTexts(holder.itemView, video.title, "Tap to play")
+                val durationLabel = formatDuration(video.durationMs)
+                bindRowTexts(holder.itemView, video.title, durationLabel)
+
+                val thumbView = (findViewByPossibleNames(
+                    holder.itemView,
+                    listOf("ivThumb", "ivThumbnail", "ivVideoThumb", "imgThumb", "ivFolderIcon")
+                ) as? ImageView) ?: run {
+                    val imgs = mutableListOf<ImageView>()
+                    collectImageViews(holder.itemView, imgs)
+                    imgs.firstOrNull()
+                }
+
+                if (thumbView != null) {
+                    val videoId = ContentUris.parseId(video.uri)
+                    loadVideoThumbnail(video.uri, videoId, thumbView)
+                }
 
                 holder.itemView.setOnClickListener {
                     val intent = Intent(this@MainActivity, PlayerActivity::class.java).apply {
