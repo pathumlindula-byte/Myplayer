@@ -1,18 +1,23 @@
 package com.example.myvideoplayer
 
+import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.media.AudioManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 import android.view.GestureDetector
 import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.widget.ImageButton
 import android.widget.SeekBar
@@ -104,17 +109,26 @@ class PlayerActivity : AppCompatActivity() {
         AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH,
         AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
     )
-    private val resizeModeNames = arrayOf("Fit", "Fill", "Zoom", "Fixed W", "Fixed H")
+    private val resizeModeNames = arrayOf("Fit", "Fill", "Zoom to Fill", "Fixed W", "Fixed H")
+
+    private var currentZoomScale = 1.0f
+    private val minZoomScale = 0.75f
+    private val maxZoomScale = 2.5f
 
     private var subtitleCues: List<SubtitleCue> = emptyList()
     private var subtitlesEnabled = true
 
-    // Swipe gesture state
+    // Single-finger vertical swipe state (brightness / volume)
     private var isSwipeDragging = false
     private var swipeSide: Int = 0 // -1 left (brightness), +1 right (volume)
     private var swipeStartY = 0f
     private var startBrightness = 0.5f
     private var startVolume = 0
+
+    // Two-finger zoom gesture state
+    private var isPinching = false
+    private var twoFingerStartSpan = 0f
+    private var twoFingerStartScale = 1.0f
 
     private val pickVideoLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
@@ -161,6 +175,7 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableFullScreenImmersion()
         setContentView(R.layout.activity_player)
 
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -193,6 +208,61 @@ class PlayerActivity : AppCompatActivity() {
         } else {
             showEmptyPrompt(true)
         }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            enableFullScreenImmersion()
+        }
+    }
+
+    private fun enableFullScreenImmersion() {
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.setDecorFitsSystemWindows(false)
+            window.insetsController?.let { controller ->
+                controller.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                controller.systemBarsBehavior =
+                    WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    or View.SYSTEM_UI_FLAG_FULLSCREEN
+                )
+        }
+    }
+
+    private fun applyVideoZoomScale(scale: Float, showToastLabel: Boolean = true) {
+        val clamped = scale.coerceIn(minZoomScale, maxZoomScale)
+        currentZoomScale = clamped
+        val targetView: View = playerView.videoSurfaceView ?: playerView
+        targetView.scaleX = clamped
+        targetView.scaleY = clamped
+        if (showToastLabel) {
+            val pct = (clamped * 100f).toInt()
+            showCenterFeedback("Zoom $pct%")
+        }
+    }
+
+    private fun resetZoomToFit() {
+        currentZoomScale = 1.0f
+        resizeModeIndex = 0
+        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        val targetView: View = playerView.videoSurfaceView ?: playerView
+        targetView.scaleX = 1.0f
+        targetView.scaleY = 1.0f
     }
 
     private fun bindViews() {
@@ -296,7 +366,7 @@ class PlayerActivity : AppCompatActivity() {
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idCol)
                     val path = cursor.getString(dataCol)
-                    val uri = android.content.ContentUris.withAppendedId(
+                    val uri = ContentUris.withAppendedId(
                         MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
                         id
                     )
@@ -323,6 +393,13 @@ class PlayerActivity : AppCompatActivity() {
             playlistUris = listOf(targetUri)
             currentIndex = 0
         }
+    }
+
+    private fun fingerDistance(event: MotionEvent): Float {
+        if (event.pointerCount < 2) return 0f
+        val dx = event.getX(0) - event.getX(1)
+        val dy = event.getY(0) - event.getY(1)
+        return kotlin.math.hypot(dx.toDouble(), dy.toDouble()).toFloat()
     }
 
     private fun setupListeners() {
@@ -357,11 +434,62 @@ class PlayerActivity : AppCompatActivity() {
             }
         })
 
+        val scaleGestureDetector = ScaleGestureDetector(
+            this,
+            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                    isPinching = true
+                    isSwipeDragging = false
+                    mainHandler.removeCallbacks(hideControlsRunnable)
+                    return true
+                }
+
+                override fun onScale(detector: ScaleGestureDetector): Boolean {
+                    applyVideoZoomScale(currentZoomScale * detector.scaleFactor)
+                    return true
+                }
+
+                override fun onScaleEnd(detector: ScaleGestureDetector) {
+                    if (areControlsVisible) scheduleHideControls()
+                }
+            }
+        )
+
         gestureOverlay.setOnTouchListener { v, event ->
-            gestureDetector.onTouchEvent(event)
+            scaleGestureDetector.onTouchEvent(event)
+
             if (isControlsLocked) {
+                if (event.pointerCount == 1) {
+                    gestureDetector.onTouchEvent(event)
+                }
                 if (event.action == MotionEvent.ACTION_UP) v.performClick()
                 return@setOnTouchListener true
+            }
+
+            if (event.pointerCount >= 2) {
+                isSwipeDragging = false
+                if (!isPinching) {
+                    isPinching = true
+                    twoFingerStartSpan = fingerDistance(event).coerceAtLeast(1f)
+                    twoFingerStartScale = currentZoomScale
+                    mainHandler.removeCallbacks(hideControlsRunnable)
+                } else if (twoFingerStartSpan > 0f) {
+                    val currentSpan = fingerDistance(event)
+                    val ratio = currentSpan / twoFingerStartSpan
+                    applyVideoZoomScale(twoFingerStartScale * ratio)
+                }
+                return@setOnTouchListener true
+            }
+
+            if (isPinching && event.actionMasked == MotionEvent.ACTION_POINTER_UP) {
+                isPinching = false
+                twoFingerStartSpan = 0f
+                swipeStartY = event.getY(if (event.actionIndex == 0) 1 else 0)
+                return@setOnTouchListener true
+            }
+
+            if (!isPinching) {
+                gestureDetector.onTouchEvent(event)
             }
 
             val width = v.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
@@ -369,6 +497,7 @@ class PlayerActivity : AppCompatActivity() {
 
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    isPinching = false
                     isSwipeDragging = false
                     swipeStartY = event.y
                     swipeSide = if (event.x < width * 0.5f) -1 else 1
@@ -376,33 +505,34 @@ class PlayerActivity : AppCompatActivity() {
                     startVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    val dy = swipeStartY - event.y
-                    if (!isSwipeDragging && abs(dy) > 28f) {
-                        isSwipeDragging = true
-                        mainHandler.removeCallbacks(hideControlsRunnable)
-                    }
-                    if (isSwipeDragging) {
-                        val deltaFraction = dy / (height * 0.65f)
-                        if (swipeSide == -1) {
-                            val newBright = (startBrightness + deltaFraction).coerceIn(0.05f, 1.0f)
-                            setWindowBrightness(newBright)
-                            showCenterFeedback("Brightness ${(newBright * 100).toInt()}%")
-                        } else {
-                            val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
-                            val targetVol = (startVolume + (deltaFraction * maxVol).toInt()).coerceIn(0, maxVol)
-                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, targetVol, 0)
-                            val percent = ((targetVol * 100f) / maxVol).toInt()
-                            showCenterFeedback("Volume $percent%")
+                    if (!isPinching) {
+                        val dy = swipeStartY - event.y
+                        if (!isSwipeDragging && abs(dy) > 28f) {
+                            isSwipeDragging = true
+                            mainHandler.removeCallbacks(hideControlsRunnable)
+                        }
+                        if (isSwipeDragging) {
+                            val deltaFraction = dy / (height * 0.65f)
+                            if (swipeSide == -1) {
+                                val newBright = (startBrightness + deltaFraction).coerceIn(0.05f, 1.0f)
+                                setWindowBrightness(newBright)
+                                showCenterFeedback("Brightness ${(newBright * 100).toInt()}%")
+                            } else {
+                                val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+                                val targetVol = (startVolume + (deltaFraction * maxVol).toInt()).coerceIn(0, maxVol)
+                                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, targetVol, 0)
+                                val percent = ((targetVol * 100f) / maxVol).toInt()
+                                showCenterFeedback("Volume $percent%")
+                            }
                         }
                     }
                 }
-                MotionEvent.ACTION_UP -> {
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     isSwipeDragging = false
+                    isPinching = false
+                    twoFingerStartSpan = 0f
                     if (areControlsVisible) scheduleHideControls()
-                    v.performClick()
-                }
-                MotionEvent.ACTION_CANCEL -> {
-                    isSwipeDragging = false
+                    if (event.actionMasked == MotionEvent.ACTION_UP) v.performClick()
                 }
             }
             true
@@ -471,6 +601,11 @@ class PlayerActivity : AppCompatActivity() {
         val cycleResizeMode = View.OnClickListener {
             resizeModeIndex = (resizeModeIndex + 1) % resizeModes.size
             playerView.resizeMode = resizeModes[resizeModeIndex]
+            if (resizeModeIndex == 0) {
+                applyVideoZoomScale(1.0f, showToastLabel = false)
+            } else if (resizeModeIndex == 2) {
+                applyVideoZoomScale(1.25f, showToastLabel = false)
+            }
             showCenterFeedback(resizeModeNames[resizeModeIndex])
             scheduleHideControls()
         }
@@ -588,6 +723,7 @@ class PlayerActivity : AppCompatActivity() {
         val uri = playlistUris[index]
         subtitleCues = emptyList()
         tvSubtitleOverlay.visibility = View.GONE
+        resetZoomToFit()
 
         showEmptyPrompt(false)
         tvVideoTitle.text = uri.lastPathSegment?.substringAfterLast('/') ?: "Zeno Player"
@@ -722,6 +858,7 @@ class PlayerActivity : AppCompatActivity() {
     private fun setControlsVisible(visible: Boolean) {
         areControlsVisible = visible
         controlsOverlay.visibility = if (visible) View.VISIBLE else View.GONE
+        enableFullScreenImmersion()
     }
 
     private fun scheduleHideControls() {
@@ -775,6 +912,7 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        enableFullScreenImmersion()
         mainHandler.post(progressRunnable)
     }
 
