@@ -18,25 +18,43 @@
 
         <ImageButton
             android:id="@+id/btnHomeBack"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="42dp"
+            android:layout_height="38dp"
             android:layout_marginEnd="10dp"
-            android:background="@drawable/bg_green_3d_glass"
+            android:background="@drawable/bg_zeno_green_pill"
+            android:clickable="true"
             android:contentDescription="Back to Folders"
+            android:elevation="6dp"
+            android:focusable="true"
             android:padding="9dp"
             android:scaleType="centerInside"
             android:src="@android:drawable/ic_media_previous"
             android:visibility="gone" />
 
-        <TextView
-            android:id="@+id/tvHomeTitle"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Zeno Player"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp"
-            android:textStyle="bold" />
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvHomeTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Zeno Player"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvDeveloperCredit"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="by Kaveen Thathsara"
+                android:textColor="#9E9E9E"
+                android:textSize="11sp" />
+
+        </LinearLayout>
 
         <TextView
             android:id="@+id/btnRefreshMedia"
