@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Size
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -17,6 +18,7 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -51,6 +53,7 @@ class MainActivity : AppCompatActivity() {
     private val folders = mutableListOf<FolderItem>()
     private var currentFolderPath: String? = null
     private val thumbExecutor = Executors.newFixedThreadPool(3)
+    private lateinit var backCallback: OnBackPressedCallback
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -78,14 +81,37 @@ class MainActivity : AppCompatActivity() {
 
         btnHomeBack.setOnClickListener { view ->
             animateScanButton(view) {
-                if (currentFolderPath != null) {
-                    currentFolderPath = null
-                    showFoldersList()
-                }
+                returnToFoldersHome()
             }
         }
 
+        backCallback = object : OnBackPressedCallback(false) {
+            override fun handleOnBackPressed() {
+                if (!returnToFoldersHome()) {
+                    isEnabled = false
+                    finish()
+                }
+            }
+        }
+        onBackPressedDispatcher.addCallback(this, backCallback)
+
         checkPermissionAndLoad()
+    }
+
+    private fun returnToFoldersHome(): Boolean {
+        if (currentFolderPath != null) {
+            currentFolderPath = null
+            showFoldersList()
+            return true
+        }
+        return false
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK && returnToFoldersHome()) {
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     override fun onDestroy() {
@@ -286,6 +312,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showFoldersList() {
+        currentFolderPath = null
+        if (::backCallback.isInitialized) {
+            backCallback.isEnabled = false
+        }
         btnHomeBack.visibility = View.GONE
         tvHomeTitle.text = "Zeno Player"
 
@@ -321,6 +351,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showVideosInFolder(folderPath: String) {
+        currentFolderPath = folderPath
+        if (::backCallback.isInitialized) {
+            backCallback.isEnabled = true
+        }
         val folderVideos = allVideos.filter { it.folderPath == folderPath }
         btnHomeBack.visibility = View.VISIBLE
         tvHomeTitle.text = folderVideos.firstOrNull()?.folderName ?: "Videos"
